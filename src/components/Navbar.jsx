@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
+import { UserCircle, Settings as SettingsIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const navItems = [
@@ -81,6 +82,21 @@ export default function Navbar() {
                       <p className="text-sm font-medium text-gray-100 truncate">{`${user.nombre} ${user.apellido || ''}`.trim()}</p>
                       <p className="text-xs text-gray-500 truncate">{user.email}</p>
                     </div>
+                    <Link
+                      to="/profile"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-800 transition-colors"
+                    >
+                      <UserCircle size={15} className="text-gray-500" /> Mi Perfil
+                    </Link>
+                    <Link
+                      to="/settings"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-800 transition-colors"
+                    >
+                      <SettingsIcon size={15} className="text-gray-500" /> Configuración
+                    </Link>
+                    <div className="border-t border-gray-800 my-1" />
                     <button
                       onClick={handleLogout}
                       className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
@@ -150,6 +166,12 @@ export default function Navbar() {
               </div>
               <Link to="/reports/new" className="btn-primary text-sm text-center" onClick={() => setOpen(false)}>
                 + Nuevo Reporte
+              </Link>
+              <Link to="/profile" className="text-sm text-gray-300 hover:text-white transition-colors" onClick={() => setOpen(false)}>
+                Mi Perfil
+              </Link>
+              <Link to="/settings" className="text-sm text-gray-300 hover:text-white transition-colors" onClick={() => setOpen(false)}>
+                Configuración
               </Link>
               <button onClick={handleLogout} className="text-sm text-red-400 hover:text-red-300 text-left transition-colors">
                 Cerrar sesión

@@ -13,6 +13,8 @@ import NewReport from './pages/NewReport';
 import ReportDetail from './pages/ReportDetail';
 import NotFound from './pages/NotFound';
 import FormularioReporte from './components/FormularioReporte';
+import Profile from './pages/Profile';
+import Settings from './pages/Settings';
 
 export default function App() {
   return (
@@ -37,6 +39,8 @@ export default function App() {
                 <Route path="reports/new"     element={<NewReport />} />
                 <Route path="reports/:id"     element={<ReportDetail />} />
                 <Route path="nuevo-reporte"   element={<FormularioReporte />} />
+                <Route path="profile"          element={<Profile />} />
+                <Route path="settings"         element={<Settings />} />
               </Route>
             </Route>
 

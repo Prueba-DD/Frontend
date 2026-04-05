@@ -40,6 +40,13 @@ export const getCategoriaPorCodigo = (codigo) => api.get(`/categorias/${codigo}`
 export const getStats       = ()           => api.get('/reportes/stats');
 export const createReporte  = (data) => api.post('/reportes', data);
 export const getReportes    = (params)     => api.get('/reportes', { params });
-export const getReporteById = (id)         => api.get(`/reportes/${id}`);
+export const getReporteById = (id, skipView = false) =>
+  api.get(`/reportes/${id}`, skipView ? { params: { skip_view: 'true' } } : {});
 export const updateReporte  = (id, data)   => api.patch(`/reportes/${id}`, data);
 export const deleteReporte  = (id)         => api.delete(`/reportes/${id}`);
+
+// ── Perfil / Auth ──
+export const getPerfil            = ()                                               => api.get('/auth/perfil');
+export const updatePerfil         = (data)                                            => api.patch('/auth/perfil', data);
+export const changePassword       = (currentPassword, newPassword, confirmPassword)   => api.patch('/auth/cambiar-contrasena', { currentPassword, newPassword, confirmPassword });
+export const updateNotifications  = (preferences)                                     => api.patch('/auth/notificaciones', preferences);

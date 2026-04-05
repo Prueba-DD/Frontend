@@ -135,8 +135,8 @@ export default function Dashboard() {
           { label: 'Total reportes',    Icon: TrendingUp,    value: stats?.total_reportes,     accent: 'text-blue-400',    bg: 'bg-blue-500/10'   },
           { label: 'En revisión',       Icon: Search,        value: stats?.en_revision,        accent: 'text-yellow-400',  bg: 'bg-yellow-500/10' },
           { label: 'Resueltos',         Icon: CheckCircle2,  value: stats?.resueltos,          accent: 'text-emerald-400', bg: 'bg-emerald-500/10'},
-          { label: 'Municipios',        Icon: MapPin,        value: stats?.municipios_activos, accent: 'text-purple-400',  bg: 'bg-purple-500/10' },
-          { label: 'Usuarios activos',  Icon: Users,         value: stats?.total_usuarios,     accent: 'text-orange-400',  bg: 'bg-orange-500/10' },
+          { label: 'Municipios reportados',        Icon: MapPin,        value: stats?.municipios_activos, accent: 'text-purple-400',  bg: 'bg-purple-500/10' },
+          { label: 'Usuarios registrados',  Icon: Users,         value: stats?.total_usuarios,     accent: 'text-orange-400',  bg: 'bg-orange-500/10' },
         ].map((s) => (
           <div key={s.label} className="card flex flex-col gap-3">
             <div className={`w-9 h-9 rounded-lg ${s.bg} flex items-center justify-center`}>

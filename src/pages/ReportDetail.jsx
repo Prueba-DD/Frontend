@@ -78,11 +78,21 @@ export default function ReportDetail() {
   const [error,     setError]     = useState('');
 
   useEffect(() => {
-    getReporteById(id)
+    const storedUser = (() => { try { return JSON.parse(localStorage.getItem('ga_user')); } catch { return null; } })();
+    const uid = storedUser?.id_usuario ?? 'anon';
+    const seenKey = 'ga_seen_reports';
+    const seen = (() => { try { return JSON.parse(localStorage.getItem(seenKey) || '{}'); } catch { return {}; } })();
+    const alreadySeen = Array.isArray(seen[uid]) && seen[uid].includes(Number(id));
+
+    getReporteById(id, alreadySeen)
       .then(({ data }) => {
         setReport(data.data.reporte);
         setAutor(data.data.autor ?? null);
         setEvidencias(data.data.evidencias ?? []);
+        if (!alreadySeen) {
+          seen[uid] = [...(seen[uid] ?? []), Number(id)];
+          localStorage.setItem(seenKey, JSON.stringify(seen));
+        }
       })
       .catch(() => setError('No se pudo cargar el reporte.'))
       .finally(() => setLoading(false));
@@ -118,7 +128,7 @@ export default function ReportDetail() {
   );
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
       {/* Back */}
       <button
         onClick={() => navigate('/reports')}
@@ -146,26 +156,35 @@ export default function ReportDetail() {
         </div>
 
         {/* Title */}
-        <h1 className="text-2xl sm:text-3xl font-bold text-white leading-snug">{report.titulo}</h1>
+        <div className="border-b border-gray-800 pb-5">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white leading-snug">{report.titulo}</h1>
+        </div>
 
-        {/* Description */}
-        {report.descripcion && (
-          <p className="text-gray-300 leading-relaxed">{report.descripcion}</p>
-        )}
-
-        {/* Evidencias / images */}
-        {imageEvidencias.length > 0 && (
-          <div>
-            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-3">
-              Evidencias ({imageEvidencias.length})
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {imageEvidencias.map((ev) => (
-                <ImageCard key={ev.id_evidencia} ev={ev} />
-              ))}
-            </div>
+        {/* Layout tipo Wikipedia: descripción izquierda + imágenes derecha */}
+        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[1fr_280px] lg:items-start">
+          {/* Izquierda: descripción */}
+          <div className="order-2 lg:order-none">
+            {report.descripcion ? (
+              <p className="text-gray-300 leading-relaxed text-base">{report.descripcion}</p>
+            ) : (
+              <p className="text-gray-500 italic text-sm">Sin descripción proporcionada.</p>
+            )}
           </div>
-        )}
+
+          {/* Derecha: evidencias (en móvil aparecen primero) */}
+          {imageEvidencias.length > 0 && (
+            <div className="order-first lg:order-none rounded-xl border border-gray-700 bg-gray-800/40 p-4 space-y-3">
+              <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
+                Evidencias ({imageEvidencias.length})
+              </p>
+              <div className="space-y-3">
+                {imageEvidencias.map((ev) => (
+                  <ImageCard key={ev.id_evidencia} ev={ev} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Meta grid */}
         <div className="grid sm:grid-cols-2 gap-4 pt-4 border-t border-gray-800 text-sm">

@@ -47,7 +47,7 @@ export default function Home() {
 
   const statsDisplay = [
     { label: 'Reportes registrados',   value: statsData?.total_reportes },
-    { label: 'Municipios activos',      value: statsData?.municipios_activos },
+    { label: 'Municipios reportados',      value: statsData?.municipios_activos },
     { label: 'Casos con seguimiento',   value: statsData?.con_seguimiento },
     { label: 'Ciudadanos participando', value: statsData?.total_usuarios },
   ];
