@@ -1,17 +1,28 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
-import { UserCircle, Settings as SettingsIcon } from 'lucide-react';
+import { UserCircle, Settings as SettingsIcon, ShieldCheck, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const navItems = [
-  { to: '/', label: 'Inicio', end: true, guestOnly: true },
-  { to: '/dashboard', label: 'Página Principal', authOnly: true },
-  { to: '/reports', label: 'Reportes', authOnly: true },
-  { to: '/about', label: 'About' },
+  { to: '/',           label: 'Inicio',          end: true,  guestOnly: true },
+  { to: '/dashboard',  label: 'Página Principal', authOnly: true },
+  { to: '/reports',    label: 'Reportes',         authOnly: true },
+  { to: '/moderacion', label: 'Moderación',       roles: ['moderador', 'admin'] },
+  { to: '/admin',      label: 'Administración',   roles: ['admin'] },
+  { to: '/about',      label: 'Acerca de' },
 ];
 
-const rolLabel = { ciudadano: 'Ciudadano', moderador: 'Moderador', admin: 'Admin' };
+const rolLabel = { ciudadano: 'Ciudadano', moderador: 'Moderador', admin: 'Administrador' };
 const rolColor = { ciudadano: 'text-green-400', moderador: 'text-blue-400', admin: 'text-yellow-400' };
+
+function filterNavItems(items, user) {
+  return items.filter((item) => {
+    if (item.guestOnly && user) return false;
+    if (item.authOnly && !user) return false;
+    if (item.roles) return user && item.roles.includes(user.rol);
+    return true;
+  });
+}
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
@@ -31,6 +42,8 @@ export default function Navbar() {
     navigate('/');
   };
 
+  const visibleItems = filterNavItems(navItems, user);
+
   return (
     <header className="sticky top-0 z-50 bg-gray-950/90 backdrop-blur border-b border-gray-800">
       <nav className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
@@ -44,13 +57,11 @@ export default function Navbar() {
 
         {/* Desktop nav */}
         <div className="hidden md:flex items-center gap-7">
-          {navItems
-            .filter((item) => !(item.guestOnly && user) && !(item.authOnly && !user))
-            .map((item) => (
-              <NavLink key={item.to} to={item.to} end={item.end} className={linkClass}>
-                {item.label}
-              </NavLink>
-            ))}
+          {visibleItems.map((item) => (
+            <NavLink key={item.to} to={item.to} end={item.end} className={linkClass}>
+              {item.label}
+            </NavLink>
+          ))}
         </div>
 
         {/* Desktop: acciones */}
@@ -71,7 +82,7 @@ export default function Navbar() {
                     {user.nombre?.charAt(0).toUpperCase()}
                   </span>
                   <div className="text-left leading-tight hidden lg:block">
-                    <p className="text-xs font-medium text-gray-200 max-w-[110px] truncate">{`${user.nombre} ${user.apellido || ''}`.trim()}</p>
+                    <p className="text-xs font-medium text-gray-200 max-w-[110px] truncate">{`${user.nombre}`.trim()}</p>
                     <p className={`text-[10px] ${rolColor[user.rol] ?? 'text-gray-400'}`}>{rolLabel[user.rol] ?? user.rol}</p>
                   </div>
                   <svg className="w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -99,6 +110,28 @@ export default function Navbar() {
                     >
                       <SettingsIcon size={15} className="text-gray-500" /> Configuración
                     </Link>
+                    {/* Accesos rápidos por rol */}
+                    {(user.rol === 'moderador' || user.rol === 'admin') && (
+                      <>
+                        <div className="border-t border-gray-800 my-1" />
+                        <Link
+                          to="/moderacion"
+                          onClick={() => setUserMenuOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-blue-300 hover:bg-gray-800 transition-colors"
+                        >
+                          <ShieldCheck size={15} className="text-blue-400" /> Moderación
+                        </Link>
+                      </>
+                    )}
+                    {user.rol === 'admin' && (
+                      <Link
+                        to="/admin"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-yellow-300 hover:bg-gray-800 transition-colors"
+                      >
+                        <Shield size={15} className="text-yellow-400" /> Panel Admin
+                      </Link>
+                    )}
                     <div className="border-t border-gray-800 my-1" />
                     <button
                       onClick={handleLogout}
@@ -143,19 +176,17 @@ export default function Navbar() {
       {/* Mobile menu */}
       {open && (
         <div className="md:hidden border-t border-gray-800 bg-gray-950 px-4 py-4 flex flex-col gap-4">
-          {navItems
-            .filter((item) => !(item.guestOnly && user) && !(item.authOnly && !user))
-            .map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={linkClass}
-                onClick={() => setOpen(false)}
-              >
-                {item.label}
-              </NavLink>
-            ))}
+          {visibleItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              className={linkClass}
+              onClick={() => setOpen(false)}
+            >
+              {item.label}
+            </NavLink>
+          ))}
 
           {user ? (
             <>

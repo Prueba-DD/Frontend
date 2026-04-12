@@ -50,3 +50,11 @@ export const getPerfil            = ()                                          
 export const updatePerfil         = (data)                                            => api.patch('/auth/perfil', data);
 export const changePassword       = (currentPassword, newPassword, confirmPassword)   => api.patch('/auth/cambiar-contrasena', { currentPassword, newPassword, confirmPassword });
 export const updateNotifications  = (preferences)                                     => api.patch('/auth/notificaciones', preferences);
+
+// ── Admin: gestión de usuarios (solo rol admin) ──
+export const getAdminStats        = ()                  => api.get('/admin/usuarios/stats');
+export const getAdminUsuarios     = (params)            => api.get('/admin/usuarios', { params });
+export const getAdminUsuario      = (id)                => api.get(`/admin/usuarios/${id}`);
+export const cambiarRolUsuario    = (id, rol)           => api.patch(`/admin/usuarios/${id}/rol`, { rol });
+export const cambiarEstadoUsuario = (id, activo)        => api.patch(`/admin/usuarios/${id}/estado`, { activo });
+export const eliminarUsuarioAdmin = (id)                => api.delete(`/admin/usuarios/${id}`);

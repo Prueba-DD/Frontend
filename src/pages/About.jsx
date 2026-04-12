@@ -204,7 +204,7 @@ export default function About() {
                   Contactar
                 </a>
                 <a
-                  href="https://github.com/Akczul/GreenAlert"
+                  href="https://github.com/Prueba-DD"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn-secondary flex items-center justify-center gap-2"

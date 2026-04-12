@@ -17,6 +17,9 @@ import NotFound from './pages/NotFound';
 import FormularioReporte from './components/FormularioReporte';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
+import Moderacion from './pages/Moderacion';
+import AdminPanel from './pages/AdminPanel';
+import AdminUsuarios from './pages/AdminUsuarios';
 
 function HomeRoute() {
   const { user } = useAuth();
@@ -39,16 +42,31 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
 
-            {/* Rutas protegidas con Layout */}
+            {/* ── Rutas protegidas: cualquier usuario autenticado ── */}
             <Route element={<ProtectedRoute />}>
               <Route path="/" element={<Layout />}>
-                <Route path="dashboard"      element={<Dashboard />} />
-                <Route path="reports"         element={<Reports />} />
-                <Route path="reports/new"     element={<NewReport />} />
-                <Route path="reports/:id"     element={<ReportDetail />} />
-                <Route path="nuevo-reporte"   element={<FormularioReporte />} />
-                <Route path="profile"          element={<Profile />} />
-                <Route path="settings"         element={<Settings />} />
+                <Route path="dashboard"    element={<Dashboard />} />
+                <Route path="reports"      element={<Reports />} />
+                <Route path="reports/new"  element={<NewReport />} />
+                <Route path="reports/:id"  element={<ReportDetail />} />
+                <Route path="nuevo-reporte" element={<FormularioReporte />} />
+                <Route path="profile"      element={<Profile />} />
+                <Route path="settings"     element={<Settings />} />
+              </Route>
+            </Route>
+
+            {/* ── Rutas protegidas: moderador y admin ── */}
+            <Route element={<ProtectedRoute roles={['moderador', 'admin']} />}>
+              <Route path="/" element={<Layout />}>
+                <Route path="moderacion" element={<Moderacion />} />
+              </Route>
+            </Route>
+
+            {/* ── Rutas protegidas: solo admin ── */}
+            <Route element={<ProtectedRoute roles={['admin']} />}>
+              <Route path="/" element={<Layout />}>
+                <Route path="admin"          element={<AdminPanel />} />
+                <Route path="admin/usuarios" element={<AdminUsuarios />} />
               </Route>
             </Route>
 

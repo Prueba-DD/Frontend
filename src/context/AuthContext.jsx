@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { loginUser, registerUser } from '../services/api';
+import { loginUser, registerUser, getPerfil } from '../services/api';
 import { useToast } from './ToastContext';
 
 const AuthContext = createContext(null);
@@ -9,18 +9,21 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
 
+  // Valida el token contra el backend al montar
   useEffect(() => {
     const token = localStorage.getItem('ga_token');
-    const stored = localStorage.getItem('ga_user');
-    if (token && stored) {
-      try {
-        setUser(JSON.parse(stored));
-      } catch {
+    if (!token) { setLoading(false); return; }
+
+    getPerfil()
+      .then(({ data }) => {
+        setUser(data.data.user);
+        localStorage.setItem('ga_user', JSON.stringify(data.data.user));
+      })
+      .catch(() => {
         localStorage.removeItem('ga_token');
         localStorage.removeItem('ga_user');
-      }
-    }
-    setLoading(false);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const login = async (email, password) => {

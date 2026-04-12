@@ -2,7 +2,18 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Loader2 } from 'lucide-react';
 
-export default function ProtectedRoute() {
+/**
+ * ProtectedRoute — protege rutas por autenticación y opcionalmente por rol.
+ *
+ * Props:
+ *  - roles?: string[]  Si se indica, solo los usuarios con ese rol pueden acceder.
+ *                      Si no se indica, cualquier usuario autenticado puede acceder.
+ *
+ * Redirige:
+ *  - No autenticado → /login
+ *  - Autenticado pero sin rol permitido → /dashboard (acceso denegado silencioso)
+ */
+export default function ProtectedRoute({ roles }) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
@@ -17,5 +28,13 @@ export default function ProtectedRoute() {
     );
   }
 
-  return user ? <Outlet /> : <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  }
+
+  if (roles && !roles.includes(user.rol)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <Outlet />;
 }
