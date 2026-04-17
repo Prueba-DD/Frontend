@@ -1,14 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   User, Mail, Phone, Calendar, ShieldCheck, Pencil, Lock,
   X, Eye, EyeOff, Check, Camera, ChevronDown, ChevronUp,
-  Activity,
+  FileText, Loader2, MapPin, Clock, ChevronLeft, ChevronRight,
+  AlertTriangle, Plus,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { getPerfil, updatePerfil, changePassword } from '../services/api';
+import { getPerfil, updatePerfil, changePassword, getMisReportes, deleteReporte } from '../services/api';
 import PasswordStrengthIndicator from '../components/PasswordStrengthIndicator';
+import { helpers } from '../constants/categorias';
 
 const rolLabel = { ciudadano: 'Ciudadano', moderador: 'Moderador', admin: 'Administrador' };
 const rolColor  = {
@@ -107,11 +110,61 @@ function PwField({ label, value, onChange, show, onToggleShow, error, placeholde
   );
 }
 
+// ── Stepper de estado de reporte ─────────────────────────────────────────────
+const ESTADO_STEPS = [
+  { key: 'pendiente',   label: 'Enviado'    },
+  { key: 'en_revision', label: 'Revisión'   },
+  { key: 'verificado',  label: 'Verificado' },
+  { key: 'en_proceso',  label: 'En proceso' },
+  { key: 'resuelto',    label: 'Resuelto'   },
+];
+function ReporteStepper({ estado }) {
+  if (estado === 'rechazado') {
+    return (
+      <div className="flex items-center gap-2">
+        <div className="flex items-center justify-center w-5 h-5 rounded-full bg-red-600/20 border border-red-500/50">
+          <X size={11} className="text-red-400" />
+        </div>
+        <span className="text-xs text-red-400 font-medium">Rechazado</span>
+      </div>
+    );
+  }
+  const activeIdx = ESTADO_STEPS.findIndex((s) => s.key === estado);
+  return (
+    <div className="flex items-center gap-0">
+      {ESTADO_STEPS.map((step, i) => {
+        const isDone    = i < activeIdx;
+        const isActive  = i === activeIdx;
+        return (
+          <div key={step.key} className="flex items-center gap-0 flex-1 last:flex-none">
+            <div className="flex flex-col items-center gap-0.5">
+              <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${
+                isDone    ? 'bg-green-500 border-green-500' :
+                isActive  ? 'bg-green-600/25 border-green-500' :
+                            'bg-gray-800 border-gray-700'
+              }`}>
+                {isDone && <Check size={8} className="text-white" />}
+                {isActive && <div className="w-1.5 h-1.5 rounded-full bg-green-400" />}
+              </div>
+              <span className={`text-[9px] leading-tight whitespace-nowrap ${
+                isActive ? 'text-green-400 font-medium' : isDone ? 'text-gray-400' : 'text-gray-600'
+              }`}>{step.label}</span>
+            </div>
+            {i < ESTADO_STEPS.length - 1 && (
+              <div className={`flex-1 h-px mt-[-8px] mx-0.5 ${isDone ? 'bg-green-500' : 'bg-gray-700'}`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Nav items del sidebar ─────────────────────────────────────────────────────
 const NAV = [
-  { key: 'perfil',    label: 'Perfil',     icon: User },
-  { key: 'seguridad', label: 'Seguridad',  icon: Lock },
-  { key: 'actividad', label: 'Actividad',  icon: Activity },
+  { key: 'perfil',       label: 'Perfil',         icon: User },
+  { key: 'seguridad',    label: 'Seguridad',       icon: Lock },
+  { key: 'mis-reportes', label: 'Mis Reportes',    icon: FileText },
 ];
 
 export default function Profile() {
@@ -136,6 +189,48 @@ export default function Profile() {
   const [pwErrors, setPwErrors] = useState({});
   const [pwSaving, setPwSaving] = useState(false);
   const [showPw,   setShowPw]   = useState({ actual: false, nueva: false, confirmar: false });
+
+  // ── Mis Reportes ──────────────────────────────────────────────────────────
+  const PAGE_SIZE = 10;
+  const [misReportes,    setMisReportes]    = useState([]);
+  const [misRptTotal,    setMisRptTotal]    = useState(0);
+  const [misRptPage,     setMisRptPage]     = useState(0);
+  const [misRptLoading,  setMisRptLoading]  = useState(false);
+  const [confirmElim,    setConfirmElim]    = useState(null); // id a eliminar
+  const [eliminando,     setEliminando]     = useState(false);
+
+  const fetchMisReportes = useCallback(async (page = 0) => {
+    setMisRptLoading(true);
+    try {
+      const { data } = await getMisReportes({ limit: PAGE_SIZE, offset: page * PAGE_SIZE });
+      setMisReportes(data.data.reportes ?? []);
+      setMisRptTotal(data.data.total ?? 0);
+      setMisRptPage(page);
+    } catch {
+      showToast('No se pudieron cargar los reportes.', 'error');
+    } finally {
+      setMisRptLoading(false);
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    if (section === 'mis-reportes') fetchMisReportes(0);
+  }, [section, fetchMisReportes]);
+
+  const handleEliminar = async () => {
+    if (!confirmElim) return;
+    setEliminando(true);
+    try {
+      await deleteReporte(confirmElim);
+      showToast('Reporte eliminado.', 'success');
+      setConfirmElim(null);
+      fetchMisReportes(misRptPage);
+    } catch (err) {
+      showToast(err.response?.data?.message ?? 'Error al eliminar.', 'error');
+    } finally {
+      setEliminando(false);
+    }
+  };
 
   useEffect(() => {
     getPerfil()
@@ -505,14 +600,153 @@ export default function Profile() {
           )}
 
           {/* ── Pestaña: Actividad ──────────────────────────────────────── */}
-          {section === 'actividad' && (
-            <div className="card p-5 sm:p-6">
-              <h2 className="text-base font-semibold text-white flex items-center gap-2 mb-4">
-                <Activity size={16} className="text-green-400" /> Actividad reciente
-              </h2>
-              <p className="text-sm text-gray-500 italic">
-                Próximamente: historial de reportes enviados, votos y actividad en la plataforma.
-              </p>
+          {/* ── Pestaña: Mis Reportes ─────────────────────────────── */}
+          {section === 'mis-reportes' && (
+            <div className="space-y-4">
+              <div className="card p-5 sm:p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-base font-semibold text-white flex items-center gap-2">
+                    <FileText size={16} className="text-green-400" /> Mis Reportes
+                  </h2>
+                  <Link to="/reports/new" className="flex items-center gap-1.5 text-xs btn-primary py-1.5 px-3">
+                    <Plus size={12} /> Nuevo
+                  </Link>
+                </div>
+
+                {misRptLoading ? (
+                  <div className="flex justify-center py-12">
+                    <Loader2 className="w-6 h-6 text-green-500 animate-spin" />
+                  </div>
+                ) : misReportes.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
+                    <FileText className="w-10 h-10 text-gray-700" />
+                    <p className="text-gray-500 text-sm">Aún no has enviado reportes.</p>
+                    <Link to="/reports/new" className="btn-primary text-xs py-1.5 px-4">
+                      Crear primer reporte
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {misReportes.map((r) => {
+                      const cfg = helpers.obtenerConfig(r.tipo_contaminacion);
+                      const esPendiente = r.estado === 'pendiente';
+                      return (
+                        <div key={r.id_reporte} className="border border-gray-800 rounded-xl p-4 space-y-3">
+                          {/* Cabecera */}
+                          <div className="flex items-start gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-2 mb-1">
+                                <span
+                                  className="badge border text-[11px]"
+                                  style={{ background: `${cfg?.color}18`, color: cfg?.color, borderColor: `${cfg?.color}40` }}
+                                >
+                                  {cfg?.nombre ?? r.tipo_contaminacion}
+                                </span>
+                                <span className={`badge border text-[11px] ${
+                                  r.nivel_severidad === 'critico' ? 'bg-red-600/25 text-rose-200 border-red-500/60' :
+                                  r.nivel_severidad === 'alto'    ? 'bg-red-500/15 text-red-400 border-red-500/30' :
+                                  r.nivel_severidad === 'medio'   ? 'bg-orange-500/15 text-orange-400 border-orange-500/30' :
+                                                                     'bg-green-500/15 text-green-400 border-green-500/30'
+                                }`}>
+                                  {{ bajo:'Baja', medio:'Media', alto:'Alta', critico:'Crítico' }[r.nivel_severidad] ?? r.nivel_severidad}
+                                </span>
+                              </div>
+                              <p className="text-sm font-medium text-gray-100 line-clamp-1">{r.titulo}</p>
+                              <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                                {r.municipio && <span className="flex items-center gap-1"><MapPin size={11} />{r.municipio}</span>}
+                                <span className="flex items-center gap-1"><Clock size={11} />{new Date(r.created_at).toLocaleDateString('es-CO', { year:'numeric', month:'short', day:'numeric' })}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Stepper de estado */}
+                          <ReporteStepper estado={r.estado} />
+
+                          {/* Acciones (solo en pendiente) */}
+                          {esPendiente && (
+                            <div className="flex items-center gap-2 pt-1 border-t border-gray-800">
+                              <Link
+                                to={`/reports/${r.id_reporte}`}
+                                className="text-xs text-gray-400 hover:text-green-400 transition-colors border border-gray-700 hover:border-green-500/50 rounded-lg px-3 py-1.5"
+                              >
+                                Editar
+                              </Link>
+                              <button
+                                onClick={() => setConfirmElim(r.id_reporte)}
+                                className="text-xs text-gray-400 hover:text-red-400 transition-colors border border-gray-700 hover:border-red-500/50 rounded-lg px-3 py-1.5"
+                              >
+                                Eliminar
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {/* Paginación */}
+                    {misRptTotal > PAGE_SIZE && (
+                      <div className="flex items-center justify-between pt-2">
+                        <span className="text-xs text-gray-500">
+                          {misRptPage * PAGE_SIZE + 1}–{Math.min((misRptPage + 1) * PAGE_SIZE, misRptTotal)} de {misRptTotal}
+                        </span>
+                        <div className="flex gap-2">
+                          <button
+                            disabled={misRptPage === 0}
+                            onClick={() => fetchMisReportes(misRptPage - 1)}
+                            className="flex items-center gap-1 text-xs btn-secondary py-1.5 px-3 disabled:opacity-40"
+                          >
+                            <ChevronLeft size={13} /> Anterior
+                          </button>
+                          <button
+                            disabled={(misRptPage + 1) * PAGE_SIZE >= misRptTotal}
+                            onClick={() => fetchMisReportes(misRptPage + 1)}
+                            className="flex items-center gap-1 text-xs btn-secondary py-1.5 px-3 disabled:opacity-40"
+                          >
+                            Siguiente <ChevronRight size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Modal de confirmación de eliminación */}
+              <AnimatePresence>
+                {confirmElim && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-sm w-full shadow-2xl"
+                    >
+                      <div className="flex items-start gap-3 mb-5">
+                        <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                        <p className="text-sm text-gray-300 leading-relaxed">
+                          ¿Eliminar este reporte? Esta acción no se puede deshacer.
+                        </p>
+                      </div>
+                      <div className="flex gap-3 justify-end">
+                        <button
+                          onClick={() => setConfirmElim(null)}
+                          disabled={eliminando}
+                          className="btn-secondary text-sm"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={handleEliminar}
+                          disabled={eliminando}
+                          className="text-sm font-semibold px-5 py-2.5 rounded-lg bg-red-600 hover:bg-red-500 text-white transition-all active:scale-95 disabled:opacity-50"
+                        >
+                          {eliminando ? 'Eliminando...' : 'Eliminar'}
+                        </button>
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>
             </div>
           )}
 

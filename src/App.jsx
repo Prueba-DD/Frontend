@@ -18,6 +18,9 @@ import FormularioReporte from './components/FormularioReporte';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 import Moderacion from './pages/Moderacion';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import VerificarEmail from './pages/VerificarEmail';
 import AdminPanel from './pages/AdminPanel';
 import AdminUsuarios from './pages/AdminUsuarios';
 
@@ -35,15 +38,18 @@ export default function App() {
             {/* Rutas públicas con Layout */}
             <Route path="/" element={<Layout />}>
               <Route index element={<HomeRoute />} />
-              <Route path="about" element={<About />} />
+              <Route path="about" element={<Navigate to="/#nosotros" replace />} />
             </Route>
 
             {/* Rutas de autenticación (sin Layout, pantalla completa) */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
+            <Route path="/login"            element={<Login />} />
+            <Route path="/register"         element={<Register />} />
+            <Route path="/forgot-password"  element={<ForgotPassword />} />
+            <Route path="/reset-password"   element={<ResetPassword />} />
 
             {/* ── Rutas protegidas: cualquier usuario autenticado ── */}
             <Route element={<ProtectedRoute />}>
+              <Route path="/verificar-email" element={<VerificarEmail />} />
               <Route path="/" element={<Layout />}>
                 <Route path="dashboard"    element={<Dashboard />} />
                 <Route path="reports"      element={<Reports />} />

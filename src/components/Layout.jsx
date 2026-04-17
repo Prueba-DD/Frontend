@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import Navbar from './Navbar';
+import VerificacionEmailBanner from './VerificacionEmailBanner';
 
 export default function Layout() {
   const location = useLocation();
@@ -8,6 +9,7 @@ export default function Layout() {
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
+      <VerificacionEmailBanner />
       <main className="flex-1">
         <AnimatePresence mode="wait">
           <motion.div

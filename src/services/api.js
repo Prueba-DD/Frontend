@@ -51,6 +51,12 @@ export const updatePerfil         = (data)                                      
 export const changePassword       = (currentPassword, newPassword, confirmPassword)   => api.patch('/auth/cambiar-contrasena', { currentPassword, newPassword, confirmPassword });
 export const updateNotifications  = (preferences)                                     => api.patch('/auth/notificaciones', preferences);
 
+export const getMisReportes     = (params)                                            => api.get('/reportes/mis-reportes', { params });
+export const forgotPassword     = (email)                                              => api.post('/auth/forgot-password', { email });
+export const resetPasswordToken = (token, newPassword, confirmPassword)                => api.post('/auth/reset-password', { token, newPassword, confirmPassword });
+export const enviarVerificacionOtp = ()                                                => api.post('/auth/enviar-verificacion');
+export const verificarEmailOtp     = (codigo)                                          => api.post('/auth/verificar-email', { codigo });
+
 // ── Admin: gestión de usuarios (solo rol admin) ──
 export const getAdminStats        = ()                  => api.get('/admin/usuarios/stats');
 export const getAdminUsuarios     = (params)            => api.get('/admin/usuarios', { params });

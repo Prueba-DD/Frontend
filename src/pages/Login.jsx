@@ -157,9 +157,12 @@ export default function Login() {
               <motion.div custom={2} variants={fieldVariants} initial="hidden" animate="show">
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-sm font-medium text-gray-300">Contraseña</label>
-                  <span className="text-xs text-green-400 hover:text-green-300 cursor-pointer select-none transition-colors">
+                  <Link
+                    to="/forgot-password"
+                    className="text-xs text-green-400 hover:text-green-300 transition-colors"
+                  >
                     ¿Olvidaste tu contraseña?
-                  </span>
+                  </Link>
                 </div>
                 <div className="relative">
                   <input

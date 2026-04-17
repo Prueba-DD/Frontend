@@ -9,7 +9,7 @@ const navItems = [
   { to: '/reports',    label: 'Reportes',         authOnly: true },
   { to: '/moderacion', label: 'Moderación',       roles: ['moderador', 'admin'] },
   { to: '/admin',      label: 'Administración',   roles: ['admin'] },
-  { to: '/about',      label: 'Acerca de' },
+  { to: '/#nosotros',  label: 'Acerca de',        hash: true, guestOnly: true },
 ];
 
 const rolLabel = { ciudadano: 'Ciudadano', moderador: 'Moderador', admin: 'Administrador' };
@@ -57,11 +57,17 @@ export default function Navbar() {
 
         {/* Desktop nav */}
         <div className="hidden md:flex items-center gap-7">
-          {visibleItems.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.end} className={linkClass}>
-              {item.label}
-            </NavLink>
-          ))}
+          {visibleItems.map((item) =>
+            item.hash ? (
+              <a key={item.to} href={item.to} className="text-sm font-medium text-gray-300 hover:text-green-400 transition-colors duration-150">
+                {item.label}
+              </a>
+            ) : (
+              <NavLink key={item.to} to={item.to} end={item.end} className={linkClass}>
+                {item.label}
+              </NavLink>
+            )
+          )}
         </div>
 
         {/* Desktop: acciones */}
@@ -176,17 +182,28 @@ export default function Navbar() {
       {/* Mobile menu */}
       {open && (
         <div className="md:hidden border-t border-gray-800 bg-gray-950 px-4 py-4 flex flex-col gap-4">
-          {visibleItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={linkClass}
-              onClick={() => setOpen(false)}
-            >
-              {item.label}
-            </NavLink>
-          ))}
+          {visibleItems.map((item) =>
+            item.hash ? (
+              <a
+                key={item.to}
+                href={item.to}
+                className="text-sm font-medium text-gray-300 hover:text-green-400 transition-colors duration-150"
+                onClick={() => setOpen(false)}
+              >
+                {item.label}
+              </a>
+            ) : (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={linkClass}
+                onClick={() => setOpen(false)}
+              >
+                {item.label}
+              </NavLink>
+            )
+          )}
 
           {user ? (
             <>
