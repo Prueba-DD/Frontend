@@ -44,6 +44,14 @@ export function AuthProvider({ children }) {
     return userData;
   };
 
+  const refreshUser = async () => {
+    const res = await getPerfil();
+    const userData = res.data.data.user;
+    localStorage.setItem('ga_user', JSON.stringify(userData));
+    setUser(userData);
+    return userData;
+  };
+
   const logout = () => {
     localStorage.removeItem('ga_token');
     localStorage.removeItem('ga_user');
@@ -52,7 +60,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

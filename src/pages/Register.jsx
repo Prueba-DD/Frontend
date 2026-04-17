@@ -55,11 +55,11 @@ export default function Register() {
         form.email, form.password,
         form.telefono.trim() || undefined,
       );
-      showToast(`¡Bienvenido, ${userData.nombre}!`, 'success', 5000, {
+      showToast(`¡Bienvenido, ${userData.nombre}! Revisa tu correo para verificar tu cuenta.`, 'success', 5000, {
         position: 'top-center',
-        subtitle: 'Tu cuenta fue creada correctamente',
+        subtitle: 'Te enviamos un código de verificación',
       });
-      navigate('/dashboard', { replace: true });
+      navigate('/verificar-email', { replace: true });
     } catch (err) {
       showToast(err.response?.data?.message || 'No se pudo crear la cuenta. Intenta de nuevo.', 'error');
     } finally {
