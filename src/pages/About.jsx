@@ -1,6 +1,7 @@
 import { Leaf, Shield, Users, Zap, MapPin, Bell, BarChart2, Mail, Github } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Reveal, CountUp } from '../utils/animations.jsx';
+import NebulaBackground from '../components/NebulaBackground';
 
 const MISSION_CARDS = [
   {
@@ -59,10 +60,7 @@ export default function About() {
 
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <section className="relative py-24 sm:py-32 overflow-hidden">
-        {/* Glows */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[500px] h-[500px] rounded-full bg-green-500/6 blur-3xl" />
-        </div>
+        <NebulaBackground dim />
 
         <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center relative z-10">
           <motion.div

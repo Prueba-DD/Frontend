@@ -5,6 +5,7 @@ import { Mail, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { enviarVerificacionOtp, verificarEmailOtp } from '../services/api';
+import NebulaBackground from '../components/NebulaBackground';
 
 const COOLDOWN = 60;
 
@@ -95,7 +96,8 @@ export default function VerificarEmail() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4 relative overflow-hidden">
+      <NebulaBackground dim />
       <motion.div
         className="w-full max-w-md"
         initial={{ opacity: 0, y: 24 }}

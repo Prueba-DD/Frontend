@@ -1,13 +1,52 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
+import { useEffect } from 'react';
 import Navbar from './Navbar';
 import VerificacionEmailBanner from './VerificacionEmailBanner';
+
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [pathname]);
+  return null;
+}
 
 export default function Layout() {
   const location = useLocation();
 
   return (
     <div className="min-h-screen flex flex-col">
+      {/* Fondo lava permanente — muy tenue para no competir con el contenido */}
+      <div className="fixed inset-0 -z-10 pointer-events-none overflow-hidden">
+        <div className="absolute rounded-full" style={{
+          left: 'calc(50% - 400px)', bottom: '-20%',
+          width: '800px', height: '620px',
+          background: 'radial-gradient(ellipse at center, rgba(34,197,94,0.07) 0%, rgba(16,185,129,0.03) 52%, transparent 70%)',
+          filter: 'blur(80px)',
+          animation: 'lava-rise-1 22s ease-in-out infinite',
+          willChange: 'transform',
+        }} />
+        <div className="absolute rounded-full" style={{
+          left: '-12%', bottom: '-25%',
+          width: '520px', height: '420px',
+          background: 'radial-gradient(ellipse at center, rgba(16,185,129,0.055) 0%, transparent 70%)',
+          filter: 'blur(72px)',
+          animation: 'lava-rise-2 28s ease-in-out infinite',
+          animationDelay: '-10s',
+          willChange: 'transform',
+        }} />
+        <div className="absolute rounded-full" style={{
+          right: '-10%', bottom: '-20%',
+          width: '480px', height: '400px',
+          background: 'radial-gradient(ellipse at center, rgba(20,184,166,0.05) 0%, transparent 70%)',
+          filter: 'blur(70px)',
+          animation: 'lava-rise-3 25s ease-in-out infinite',
+          animationDelay: '-15s',
+          willChange: 'transform',
+        }} />
+      </div>
+      <ScrollToTop />
       <Navbar />
       <VerificacionEmailBanner />
       <main className="flex-1">

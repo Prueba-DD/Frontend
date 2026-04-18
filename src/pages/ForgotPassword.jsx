@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Mail, ArrowLeft, Leaf } from 'lucide-react';
 import { motion } from 'motion/react';
 import { forgotPassword } from '../services/api';
+import NebulaBackground from '../components/NebulaBackground';
 
 const panelVariants = {
   hidden: (x) => ({ opacity: 0, x }),
@@ -52,9 +53,7 @@ export default function ForgotPassword() {
         initial="hidden"
         animate="show"
       >
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-green-500/8 rounded-full blur-3xl" />
-        </div>
+        <NebulaBackground compact dim />
         <div className="relative z-10 text-center max-w-sm">
           <img src="/chrome-512x512.png" alt="GreenAlert" className="h-36 w-auto object-contain mx-auto mb-4 drop-shadow-2xl" />
           <h2 className="text-2xl font-bold mb-1">
