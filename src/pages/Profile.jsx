@@ -5,7 +5,8 @@ import {
   User, Mail, Phone, Calendar, ShieldCheck, Pencil, Lock,
   X, Eye, EyeOff, Check, Camera, ChevronDown, ChevronUp,
   FileText, Loader2, MapPin, Clock, ChevronLeft, ChevronRight,
-  AlertTriangle, Plus,
+  AlertTriangle, Plus, Leaf, Flame, Waves, Droplets, Wind,
+  Volume2, Sun, Mountain, Trash2, HelpCircle, ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -118,6 +119,33 @@ const ESTADO_STEPS = [
   { key: 'en_proceso',  label: 'En proceso' },
   { key: 'resuelto',    label: 'Resuelto'   },
 ];
+
+// ── Configuración por severidad ───────────────────────────────────────────────
+const SEVERITY_CFG = {
+  bajo:    { label: 'Baja',    bg: 'bg-green-500/15',  text: 'text-green-400',  border: 'border-green-500/30' },
+  medio:   { label: 'Media',   bg: 'bg-orange-500/15', text: 'text-orange-400', border: 'border-orange-500/30' },
+  alto:    { label: 'Alta',    bg: 'bg-red-500/15',    text: 'text-red-400',    border: 'border-red-500/30' },
+  critico: { label: 'Crítico', bg: 'bg-red-600/25',    text: 'text-rose-200',   border: 'border-red-500/60' },
+};
+
+// ── Ícono por tipo de categoría ───────────────────────────────────────────────
+const TIPO_ICON_MAP = {
+  deforestacion:                 Leaf,
+  incendios_forestales:          Flame,
+  deslizamientos:                AlertTriangle,
+  avalanchas_fluviotorrenciales: Waves,
+  agua:                          Droplets,
+  aire:                          Wind,
+  ruido:                         Volume2,
+  suelo:                         Mountain,
+  residuos:                      Trash2,
+  luminica:                      Sun,
+};
+
+function CategoryIcon({ tipo, color, size = 22 }) {
+  const Icon = TIPO_ICON_MAP[tipo] ?? HelpCircle;
+  return <Icon size={size} style={{ color }} />;
+}
 function ReporteStepper({ estado }) {
   if (estado === 'rechazado') {
     return (
@@ -627,59 +655,122 @@ export default function Profile() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {misReportes.map((r) => {
-                      const cfg = helpers.obtenerConfig(r.tipo_contaminacion);
+                    {misReportes.map((r, idx) => {
+                      const cfg      = helpers.obtenerConfig(r.tipo_contaminacion);
+                      const sevCfg   = SEVERITY_CFG[r.nivel_severidad] ?? SEVERITY_CFG.bajo;
                       const esPendiente = r.estado === 'pendiente';
+                      const accentColor = cfg?.color ?? '#22c55e';
                       return (
-                        <div key={r.id_reporte} className="border border-gray-800 rounded-xl p-4 space-y-3">
-                          {/* Cabecera */}
-                          <div className="flex items-start gap-3">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex flex-wrap items-center gap-2 mb-1">
-                                <span
-                                  className="badge border text-[11px]"
-                                  style={{ background: `${cfg?.color}18`, color: cfg?.color, borderColor: `${cfg?.color}40` }}
+                        <motion.div
+                          key={r.id_reporte}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.24, delay: idx * 0.04, ease: 'easeOut' }}
+                          className="group relative overflow-hidden rounded-xl border border-gray-800/80 hover:border-gray-700 bg-gray-900/50 hover:bg-gray-800/30 transition-all duration-200"
+                        >
+                          {/* Accent bar izquierda — color de categoría */}
+                          <div
+                            className="absolute left-0 top-0 bottom-0 w-[3px]"
+                            style={{ background: accentColor }}
+                          />
+
+                          <div className="pl-5 pr-4 pt-4 pb-0">
+
+                            {/* ─── Fila principal: contenido + caja de ícono ─── */}
+                            <div className="flex gap-3">
+
+                              {/* Contenido izquierdo */}
+                              <div className="flex-1 min-w-0">
+                                {/* Badges */}
+                                <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                                  <span
+                                    className="badge border text-[11px] font-medium"
+                                    style={{ background: `${accentColor}18`, color: accentColor, borderColor: `${accentColor}40` }}
+                                  >
+                                    {cfg?.nombre ?? r.tipo_contaminacion}
+                                  </span>
+                                  <span className={`badge border text-[11px] font-medium ${sevCfg.bg} ${sevCfg.text} ${sevCfg.border}`}>
+                                    {sevCfg.label}
+                                  </span>
+                                </div>
+
+                                {/* Título */}
+                                <h3 className="text-sm font-semibold text-gray-100 line-clamp-2 leading-snug mb-1.5 group-hover:text-white transition-colors">
+                                  {r.titulo}
+                                </h3>
+
+                                {/* Descripción (si disponible) */}
+                                {r.descripcion && (
+                                  <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed mb-2">
+                                    {r.descripcion}
+                                  </p>
+                                )}
+
+                                {/* Meta */}
+                                <div className="flex items-center gap-3 text-xs text-gray-600 mb-3">
+                                  {r.municipio && (
+                                    <span className="flex items-center gap-1">
+                                      <MapPin size={10} className="shrink-0" />{r.municipio}
+                                    </span>
+                                  )}
+                                  <span className="flex items-center gap-1">
+                                    <Clock size={10} className="shrink-0" />
+                                    {new Date(r.created_at).toLocaleDateString('es-CO', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Caja de ícono de categoría (solo sm+) */}
+                              <div
+                                className="hidden sm:flex shrink-0 self-start mt-0.5 w-14 h-14 rounded-xl items-center justify-center border"
+                                style={{
+                                  background: `${accentColor}0d`,
+                                  borderColor: `${accentColor}28`,
+                                }}
+                              >
+                                <CategoryIcon tipo={r.tipo_contaminacion} color={accentColor} size={24} />
+                              </div>
+                            </div>
+
+                            {/* ─── Franja inferior: stepper + acciones ─── */}
+                            <div className="flex items-center gap-3 py-2.5 border-t border-gray-800/60 -mx-4 px-4">
+                              {/* Stepper (se estira) */}
+                              <div className="flex-1 min-w-0 overflow-hidden">
+                                <ReporteStepper estado={r.estado} />
+                              </div>
+
+                              {/* Acciones — íconos compactos */}
+                              <div className="flex items-center gap-0.5 shrink-0">
+                                <Link
+                                  to={`/reports/${r.id_reporte}`}
+                                  className="p-1.5 rounded-lg text-gray-600 hover:text-green-400 hover:bg-green-500/10 transition-colors"
+                                  title="Ver detalle"
                                 >
-                                  {cfg?.nombre ?? r.tipo_contaminacion}
-                                </span>
-                                <span className={`badge border text-[11px] ${
-                                  r.nivel_severidad === 'critico' ? 'bg-red-600/25 text-rose-200 border-red-500/60' :
-                                  r.nivel_severidad === 'alto'    ? 'bg-red-500/15 text-red-400 border-red-500/30' :
-                                  r.nivel_severidad === 'medio'   ? 'bg-orange-500/15 text-orange-400 border-orange-500/30' :
-                                                                     'bg-green-500/15 text-green-400 border-green-500/30'
-                                }`}>
-                                  {{ bajo:'Baja', medio:'Media', alto:'Alta', critico:'Crítico' }[r.nivel_severidad] ?? r.nivel_severidad}
-                                </span>
-                              </div>
-                              <p className="text-sm font-medium text-gray-100 line-clamp-1">{r.titulo}</p>
-                              <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                                {r.municipio && <span className="flex items-center gap-1"><MapPin size={11} />{r.municipio}</span>}
-                                <span className="flex items-center gap-1"><Clock size={11} />{new Date(r.created_at).toLocaleDateString('es-CO', { year:'numeric', month:'short', day:'numeric' })}</span>
+                                  <ExternalLink size={14} />
+                                </Link>
+                                {esPendiente && (
+                                  <>
+                                    <Link
+                                      to={`/reports/${r.id_reporte}`}
+                                      className="p-1.5 rounded-lg text-gray-600 hover:text-blue-400 hover:bg-blue-500/10 transition-colors"
+                                      title="Editar"
+                                    >
+                                      <Pencil size={14} />
+                                    </Link>
+                                    <button
+                                      onClick={() => setConfirmElim(r.id_reporte)}
+                                      className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                                      title="Eliminar"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             </div>
+
                           </div>
-
-                          {/* Stepper de estado */}
-                          <ReporteStepper estado={r.estado} />
-
-                          {/* Acciones (solo en pendiente) */}
-                          {esPendiente && (
-                            <div className="flex items-center gap-2 pt-1 border-t border-gray-800">
-                              <Link
-                                to={`/reports/${r.id_reporte}`}
-                                className="text-xs text-gray-400 hover:text-green-400 transition-colors border border-gray-700 hover:border-green-500/50 rounded-lg px-3 py-1.5"
-                              >
-                                Editar
-                              </Link>
-                              <button
-                                onClick={() => setConfirmElim(r.id_reporte)}
-                                className="text-xs text-gray-400 hover:text-red-400 transition-colors border border-gray-700 hover:border-red-500/50 rounded-lg px-3 py-1.5"
-                              >
-                                Eliminar
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                        </motion.div>
                       );
                     })}
 

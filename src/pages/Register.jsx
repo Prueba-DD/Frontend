@@ -5,6 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { CheckCircle2, Lock, Smartphone, Eye, EyeOff } from 'lucide-react';
 import { motion } from 'motion/react';
 import PasswordStrengthIndicator from '../components/PasswordStrengthIndicator';
+import NebulaBackground from '../components/NebulaBackground';
 
 // Animaciones compartidas con Login
 const panelVariants = {
@@ -26,10 +27,11 @@ export default function Register() {
 
   const [form, setForm] = useState({
     nombre: '', apellido: '', email: '',
-    password: '', confirmar: '', telefono: '',
+    password: '', confirmar: '',
   });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -53,7 +55,6 @@ export default function Register() {
       const userData = await register(
         form.nombre.trim(), form.apellido.trim(),
         form.email, form.password,
-        form.telefono.trim() || undefined,
       );
       showToast(`¡Bienvenido, ${userData.nombre}! Revisa tu correo para verificar tu cuenta.`, 'success', 5000, {
         position: 'top-center',
@@ -78,9 +79,7 @@ export default function Register() {
         initial="hidden"
         animate="show"
       >
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-green-500/8 rounded-full blur-3xl" />
-        </div>
+        <NebulaBackground compact dim />
         <div className="relative z-10 text-center max-w-sm">
           <img src="/chrome-512x512.png" alt="GreenAlert" className="h-36 w-auto object-contain mx-auto mb-4 drop-shadow-2xl" />
           <h2 className="text-2xl font-bold mb-1">
@@ -180,6 +179,8 @@ export default function Register() {
                     type={showPassword ? 'text' : 'password'}
                     required autoComplete="new-password"
                     value={form.password} onChange={(e) => set('password', e.target.value)}
+                    onFocus={() => setPasswordFocused(true)}
+                    onBlur={() => setPasswordFocused(false)}
                     placeholder="Mínimo 8 caracteres"
                     className="w-full bg-gray-800/80 border border-gray-700 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-2.5 pr-11 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500/40 transition"
                   />
@@ -189,7 +190,7 @@ export default function Register() {
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
-                {form.password && <PasswordStrengthIndicator password={form.password} />}
+                {form.password && <PasswordStrengthIndicator password={form.password} focused={passwordFocused} />}
               </motion.div>
 
               {/* Confirmar contraseña */}
@@ -211,18 +212,7 @@ export default function Register() {
                 )}
               </motion.div>
 
-              {/* Teléfono (opcional) */}
               <motion.div custom={5} variants={fieldVariants} initial="hidden" animate="show">
-                <label className="block text-xs font-medium text-gray-400 mb-1">
-                  Teléfono <span className="text-gray-600 font-normal">(opcional)</span>
-                </label>
-                <input type="tel" autoComplete="tel"
-                  value={form.telefono} onChange={(e) => set('telefono', e.target.value)}
-                  placeholder="+57 300 000 0000"
-                  className="w-full bg-gray-800/80 border border-gray-700 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500/40 transition" />
-              </motion.div>
-
-              <motion.div custom={6} variants={fieldVariants} initial="hidden" animate="show">
                 <button
                   type="submit"
                   disabled={loading}
@@ -241,7 +231,7 @@ export default function Register() {
               </motion.div>
             </form>
 
-            <motion.p custom={7} variants={fieldVariants} initial="hidden" animate="show"
+            <motion.p custom={6} variants={fieldVariants} initial="hidden" animate="show"
               className="mt-5 text-center text-sm text-gray-400">
               ¿Ya tienes cuenta?{' '}
               <Link to="/login" className="text-green-400 hover:text-green-300 font-medium transition-colors">

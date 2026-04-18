@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   MapPin, Camera, Users, CheckCircle2, BarChart2, Bell,
@@ -98,6 +98,57 @@ export default function Home() {
       .catch(() => {});
   }, []);
 
+  const heroRef = useRef(null);
+  const orb1 = useRef(null);
+  const orb2 = useRef(null);
+  const orb3 = useRef(null);
+  const orb4 = useRef(null);
+  const orb5 = useRef(null);
+  const orb6 = useRef(null);
+
+  useEffect(() => {
+    const hero = heroRef.current;
+    if (!hero) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const mouse = { x: 0, y: 0 };
+    const cur   = { x: 0, y: 0 };
+    let raf;
+
+    // [ref, multiplierX, multiplierY] — negativos = sentido contrario al cursor
+    const LAYERS = [
+      [orb1,  22,  16],
+      [orb2, -52, -40],
+      [orb3,  42,  35],
+      [orb4,  28,  22],
+      [orb5, -68, -55],
+      [orb6,  58,  48],
+    ];
+
+    const onMove = (e) => {
+      const r = hero.getBoundingClientRect();
+      mouse.x = (e.clientX - r.left) / r.width  - 0.5;
+      mouse.y = (e.clientY - r.top)  / r.height - 0.5;
+    };
+
+    const tick = () => {
+      cur.x += (mouse.x - cur.x) * 0.055;
+      cur.y += (mouse.y - cur.y) * 0.055;
+      for (const [ref, mx, my] of LAYERS) {
+        if (ref.current)
+          ref.current.style.transform = `translate(${cur.x * mx}px, ${cur.y * my}px)`;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+
+    hero.addEventListener('mousemove', onMove);
+    raf = requestAnimationFrame(tick);
+    return () => {
+      hero.removeEventListener('mousemove', onMove);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+
   const statsDisplay = [
     { label: 'Reportes registrados',  value: statsData?.total_reportes,    suffix: '+' },
     { label: 'Municipios reportados', value: statsData?.municipios_activos, suffix: '' },
@@ -109,11 +160,81 @@ export default function Home() {
     <div className="flex flex-col">
 
       {/* HERO */}
-      <section className="relative overflow-hidden pt-12 pb-24 sm:pt-16 sm:pb-32 px-4 sm:px-6 text-center">
+      <section ref={heroRef} className="relative overflow-hidden pt-12 pb-24 sm:pt-16 sm:pb-32 px-4 sm:px-6 text-center">
         <div className="absolute inset-0 -z-10 pointer-events-none overflow-hidden">
-          <div className="absolute left-1/2 -top-20 -translate-x-1/2 w-[900px] h-[600px] bg-green-500/8 rounded-full blur-3xl" />
-          <div className="absolute -left-20 bottom-0 w-[400px] h-[400px] bg-emerald-600/5 rounded-full blur-3xl" />
-          <div className="absolute -right-20 top-1/2 w-[350px] h-[350px] bg-teal-500/5 rounded-full blur-3xl" />
+          {/* Grain texture */}
+          <svg className="absolute inset-0 w-full h-full opacity-[0.04] mix-blend-overlay" xmlns="http://www.w3.org/2000/svg">
+            <filter id="ga-grain">
+              <feTurbulence type="fractalNoise" baseFrequency="0.68" numOctaves="3" stitchTiles="stitch" />
+              <feColorMatrix type="saturate" values="0" />
+            </filter>
+            <rect width="100%" height="100%" filter="url(#ga-grain)" />
+          </svg>
+
+          {/* Blob 1 — masa central principal, sube lento */}
+          <div ref={orb1} className="absolute rounded-full" style={{
+            left: 'calc(50% - 420px)', bottom: '-10%',
+            width: '840px', height: '680px',
+            background: 'radial-gradient(ellipse at center, rgba(34,197,94,0.20) 0%, rgba(16,185,129,0.09) 50%, transparent 72%)',
+            filter: 'blur(70px)',
+            animation: 'lava-rise-1 18s ease-in-out infinite',
+            willChange: 'transform',
+          }} />
+
+          {/* Blob 2 — masa izquierda esmeralda, sube desplazada */}
+          <div ref={orb2} className="absolute rounded-full" style={{
+            left: '-8%', bottom: '-15%',
+            width: '580px', height: '500px',
+            background: 'radial-gradient(ellipse at center, rgba(16,185,129,0.17) 0%, rgba(34,197,94,0.07) 58%, transparent 75%)',
+            filter: 'blur(60px)',
+            animation: 'lava-rise-2 23s ease-in-out infinite',
+            animationDelay: '-7s',
+            willChange: 'transform',
+          }} />
+
+          {/* Blob 3 — masa derecha teal */}
+          <div ref={orb3} className="absolute rounded-full" style={{
+            right: '-6%', bottom: '-12%',
+            width: '520px', height: '460px',
+            background: 'radial-gradient(ellipse at center, rgba(20,184,166,0.15) 0%, rgba(34,197,94,0.06) 55%, transparent 74%)',
+            filter: 'blur(58px)',
+            animation: 'lava-rise-3 20s ease-in-out infinite',
+            animationDelay: '-12s',
+            willChange: 'transform',
+          }} />
+
+          {/* Blob 4 — núcleo pequeño central, el más brillante */}
+          <div ref={orb4} className="absolute rounded-full" style={{
+            left: 'calc(50% - 160px)', bottom: '-5%',
+            width: '320px', height: '260px',
+            background: 'radial-gradient(ellipse at center, rgba(74,222,128,0.21) 0%, transparent 68%)',
+            filter: 'blur(36px)',
+            animation: 'lava-rise-1 14s ease-in-out infinite',
+            animationDelay: '-5s',
+            willChange: 'transform',
+          }} />
+
+          {/* Blob 5 — gota pequeña izquierda */}
+          <div ref={orb5} className="absolute rounded-full" style={{
+            left: '22%', bottom: '-8%',
+            width: '220px', height: '200px',
+            background: 'radial-gradient(ellipse, rgba(34,197,94,0.17) 0%, transparent 72%)',
+            filter: 'blur(30px)',
+            animation: 'lava-rise-2 16s ease-in-out infinite',
+            animationDelay: '-3s',
+            willChange: 'transform',
+          }} />
+
+          {/* Blob 6 — gota pequeña derecha */}
+          <div ref={orb6} className="absolute rounded-full" style={{
+            right: '20%', bottom: '-6%',
+            width: '190px', height: '170px',
+            background: 'radial-gradient(ellipse, rgba(20,184,166,0.15) 0%, transparent 72%)',
+            filter: 'blur(28px)',
+            animation: 'lava-rise-3 19s ease-in-out infinite',
+            animationDelay: '-9s',
+            willChange: 'transform',
+          }} />
         </div>
 
         <motion.div
@@ -204,7 +325,8 @@ export default function Home() {
         </motion.div>
       </section>
 
-      {/* STATS */}
+      {/* STATS — solo se muestra cuando hay datos significativos */}
+      {statsData && statsData.total_reportes >= 20 && (
       <section className="py-14 px-4 sm:px-6 border-y border-gray-800 bg-gray-900/50">
         <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
           {statsDisplay.map((s, i) => (
@@ -217,6 +339,7 @@ export default function Home() {
           ))}
         </div>
       </section>
+      )}
 
       {/* EL CONTEXTO */}
       <section className="py-20 px-4 sm:px-6">
@@ -393,7 +516,7 @@ export default function Home() {
                   </div>
                   <div className="flex flex-col sm:flex-row gap-3">
                     <a
-                      href="mailto:contacto@greenalert.co"
+                      href="mailto: greenalert.webcompany@gmail.com"
                       className="btn-primary flex items-center justify-center gap-2"
                     >
                       <Mail className="w-4 h-4" />
@@ -418,7 +541,7 @@ export default function Home() {
                     </div>
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wider mb-0.5">Correo</p>
-                      <p className="text-sm text-white font-medium">contacto@greenalert.co</p>
+                      <p className="text-sm text-white font-medium">greenalert.webcompany@gmail.com</p>
                       <p className="text-xs text-gray-500 mt-0.5">Respondemos en menos de 48 h</p>
                     </div>
                   </div>

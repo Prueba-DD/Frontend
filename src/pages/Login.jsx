@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { MapPin, Users, BarChart2, Bell, Eye, EyeOff } from 'lucide-react';
 import { motion } from 'motion/react';
+import NebulaBackground from '../components/NebulaBackground';
 
 const features = [
   { Icon: MapPin,    text: 'Geolocalización precisa' },
@@ -67,10 +68,7 @@ export default function Login() {
         initial="hidden"
         animate="show"
       >
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-green-500/8 rounded-full blur-3xl" />
-          <div className="absolute left-1/4 bottom-16 w-[300px] h-[300px] bg-emerald-600/5 rounded-full blur-2xl" />
-        </div>
+        <NebulaBackground compact dim />
 
         <div className="relative z-10 text-center max-w-sm">
           <img src="/chrome-512x512.png" alt="GreenAlert" className="h-36 w-auto object-contain mx-auto mb-4 drop-shadow-2xl" />

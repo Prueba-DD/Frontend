@@ -24,6 +24,35 @@
   }
 }
 
+/* ── Nebula hero animations ────────────────────────────────── */
+/* Lava-lamp: cada blob sube desde abajo, se hincha, llega arriba y vuelve */
+@keyframes lava-rise-1 {
+  0%   { transform: translateY(0%)   scale(1)    ; opacity: 0.55; }
+  20%  { transform: translateY(-18%) scale(1.08) ; opacity: 0.85; }
+  45%  { transform: translateY(-42%) scale(1.14) ; opacity: 1;    }
+  70%  { transform: translateY(-68%) scale(1.06) ; opacity: 0.80; }
+  90%  { transform: translateY(-88%) scale(0.94) ; opacity: 0.50; }
+  100% { transform: translateY(0%)   scale(1)    ; opacity: 0.55; }
+}
+@keyframes lava-rise-2 {
+  0%   { transform: translateY(0%)   scale(1.05) rotate(0deg);   opacity: 0.50; }
+  25%  { transform: translateY(-25%) scale(1.18) rotate(4deg);   opacity: 0.90; }
+  55%  { transform: translateY(-55%) scale(1.10) rotate(-3deg);  opacity: 0.95; }
+  80%  { transform: translateY(-82%) scale(0.97) rotate(2deg);   opacity: 0.60; }
+  100% { transform: translateY(0%)   scale(1.05) rotate(0deg);   opacity: 0.50; }
+}
+@keyframes lava-rise-3 {
+  0%   { transform: translateY(0%)   scale(0.92); opacity: 0.45; }
+  30%  { transform: translateY(-30%) scale(1.12); opacity: 0.88; }
+  60%  { transform: translateY(-62%) scale(1.20); opacity: 1;    }
+  85%  { transform: translateY(-84%) scale(1.04); opacity: 0.65; }
+  100% { transform: translateY(0%)   scale(0.92); opacity: 0.45; }
+}
+@keyframes lava-pulse {
+  0%, 100% { opacity: 0.70; transform: scale(1);    }
+  50%       { opacity: 1;   transform: scale(1.10); }
+}
+
 /* prefers-reduced-motion: desactiva todas las animaciones/transiciones */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

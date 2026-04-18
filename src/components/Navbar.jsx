@@ -48,7 +48,11 @@ export default function Navbar() {
     <header className="sticky top-0 z-50 bg-gray-950/90 backdrop-blur border-b border-gray-800">
       <nav className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
         {/* Logo */}
-        <Link to="/" className="flex items-center shrink-0">
+        <Link
+          to="/"
+          className="flex items-center shrink-0"
+          onClick={() => window.scrollTo({ top: 0, left: 0, behavior: 'smooth' })}
+        >
           <img src="/chrome-192x192.png" alt="GreenAlert" className="h-9 w-9 object-contain" />
           <span className="ml-2 font-bold text-white tracking-tight hidden sm:inline">
             Green<span className="text-green-400">Alert</span>

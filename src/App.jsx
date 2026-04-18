@@ -9,6 +9,7 @@ import Home from './pages/Home';
 import About from './pages/About';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
 import Reports from './pages/Reports';
 import NewReport from './pages/NewReport';
@@ -39,11 +40,13 @@ export default function App() {
             <Route path="/" element={<Layout />}>
               <Route index element={<HomeRoute />} />
               <Route path="about" element={<Navigate to="/#nosotros" replace />} />
+              <Route path="reports"      element={<Reports />} />
+              <Route path="reports/:id"  element={<ReportDetail />} />
             </Route>
 
             {/* Rutas de autenticación (sin Layout, pantalla completa) */}
-            <Route path="/login"            element={<Login />} />
-            <Route path="/register"         element={<Register />} />
+            <Route path="/login"            element={<Auth />} />
+            <Route path="/register"         element={<Auth />} />
             <Route path="/forgot-password"  element={<ForgotPassword />} />
             <Route path="/reset-password"   element={<ResetPassword />} />
 
@@ -52,9 +55,7 @@ export default function App() {
               <Route path="/verificar-email" element={<VerificarEmail />} />
               <Route path="/" element={<Layout />}>
                 <Route path="dashboard"    element={<Dashboard />} />
-                <Route path="reports"      element={<Reports />} />
                 <Route path="reports/new"  element={<NewReport />} />
-                <Route path="reports/:id"  element={<ReportDetail />} />
                 <Route path="nuevo-reporte" element={<FormularioReporte />} />
                 <Route path="profile"      element={<Profile />} />
                 <Route path="settings"     element={<Settings />} />
