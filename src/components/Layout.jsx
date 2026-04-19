@@ -1,4 +1,4 @@
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect } from 'react';
 import Navbar from './Navbar';
@@ -63,7 +63,14 @@ export default function Layout() {
         </AnimatePresence>
       </main>
       <footer className="border-t border-gray-800 py-6 text-center text-gray-500 text-sm">
-        <span className="text-green-500 font-semibold">GreenAlert</span> © {new Date().getFullYear()} — Monitoreo Ambiental Ciudadano
+        <div className="mb-2">
+          <span className="text-green-500 font-semibold">GreenAlert</span> © {new Date().getFullYear()} — Monitoreo Ambiental Ciudadano
+        </div>
+        <div className="flex items-center justify-center gap-3 text-xs">
+          <Link to="/privacidad" className="hover:text-green-400 transition-colors">Política de Privacidad</Link>
+          <span className="text-gray-700">·</span>
+          <Link to="/terminos" className="hover:text-green-400 transition-colors">Términos y Condiciones</Link>
+        </div>
       </footer>
     </div>
   );

@@ -24,6 +24,7 @@ import ResetPassword from './pages/ResetPassword';
 import VerificarEmail from './pages/VerificarEmail';
 import AdminPanel from './pages/AdminPanel';
 import AdminUsuarios from './pages/AdminUsuarios';
+import PoliticaPrivacidad from './pages/PoliticaPrivacidad';
 
 function HomeRoute() {
   const { user } = useAuth();
@@ -42,6 +43,7 @@ export default function App() {
               <Route path="about" element={<Navigate to="/#nosotros" replace />} />
               <Route path="reports"      element={<Reports />} />
               <Route path="reports/:id"  element={<ReportDetail />} />
+              <Route path="privacidad"   element={<PoliticaPrivacidad />} />
             </Route>
 
             {/* Rutas de autenticación (sin Layout, pantalla completa) */}
