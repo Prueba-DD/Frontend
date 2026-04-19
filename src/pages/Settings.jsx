@@ -2,7 +2,7 @@
 import {
   Bell, ShieldCheck, LogOut, AlertTriangle, Download, Mail,
   User, Check, ChevronRight, Trash2, Power, Zap, ExternalLink,
-  AlertCircle, RefreshCw, Tag,
+  AlertCircle, RefreshCw, Tag, FileText,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -290,6 +290,16 @@ export default function Settings() {
                   </span>
                   <ExternalLink size={13} className="text-gray-600 group-hover:text-gray-400 transition-colors" />
                 </button>
+                <Link
+                  to="/terminos"
+                  className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl border border-gray-800 hover:border-gray-600 text-sm text-gray-300 hover:text-white transition-all group"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <FileText size={15} className="text-gray-500 group-hover:text-green-400 transition-colors" />
+                    Ver términos y condiciones
+                  </span>
+                  <ExternalLink size={13} className="text-gray-600 group-hover:text-gray-400 transition-colors" />
+                </Link>
                 <button
                   onClick={() => showToast('Descarga de datos próximamente.', 'info')}
                   className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl border border-gray-800 hover:border-gray-600 text-sm text-gray-300 hover:text-white transition-all group"
