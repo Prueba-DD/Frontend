@@ -8,6 +8,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { motion, AnimatePresence } from 'motion/react';
+import DescargarDatos from '../components/DescargarDatos';
 
 // ── Sidebar nav items ─────────────────────────────────────────────────────────
 const NAV = [
@@ -82,6 +83,7 @@ export default function Settings() {
 
   // ── Modales ───────────────────────────────────────────────────────────────
   const [modal, setModal] = useState(null);
+  const [showDescargar, setShowDescargar] = useState(false);
 
   // ── Eliminar cuenta: confirmación por texto ───────────────────────────────
   const [deleteInput, setDeleteInput] = useState('');
@@ -280,8 +282,8 @@ export default function Settings() {
               </div>
 
               <div className="space-y-2">
-                <button
-                  onClick={() => showToast('Política de privacidad próximamente.', 'info')}
+                <Link
+                  to="/privacidad"
                   className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl border border-gray-800 hover:border-gray-600 text-sm text-gray-300 hover:text-white transition-all group"
                 >
                   <span className="flex items-center gap-2.5">
@@ -301,7 +303,7 @@ export default function Settings() {
                   <ExternalLink size={13} className="text-gray-600 group-hover:text-gray-400 transition-colors" />
                 </Link>
                 <button
-                  onClick={() => showToast('Descarga de datos próximamente.', 'info')}
+                  onClick={() => setShowDescargar(true)}
                   className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl border border-gray-800 hover:border-gray-600 text-sm text-gray-300 hover:text-white transition-all group"
                 >
                   <span className="flex items-center gap-2.5">
@@ -484,6 +486,9 @@ export default function Settings() {
           onCancel={() => setModal(null)}
         />
       )}
+
+      {/* Modal de descarga de datos */}
+      <DescargarDatos open={showDescargar} onClose={() => setShowDescargar(false)} />
     </div>
   );
 }
