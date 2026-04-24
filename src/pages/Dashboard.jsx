@@ -1,14 +1,14 @@
-import { useEffect, useState, useRef, lazy, Suspense } from 'react';
+import { useEffect, useState, useRef, lazy, Suspense, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { checkHealth, getStats, getReportes } from '../services/api';
 import {
   ClipboardList, Search, CheckCircle2, Users,
-  MapPin, TrendingUp, ArrowRight, Activity, Clock,
+  MapPin, TrendingUp, ArrowRight, Activity, Clock, Filter, X,
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { CountUp } from '../utils/animations.jsx';
 import { useAuth } from '../context/AuthContext';
-import { helpers } from '../constants/categorias';
+import { helpers, CONFIGURACION_CATEGORIAS } from '../constants/categorias';
 
 const ReportsMap = lazy(() => import('../components/ReportsMap'));
 
@@ -81,6 +81,7 @@ export default function Dashboard() {
   const [stats,      setStats]      = useState(null);
   const [activity,   setActivity]   = useState([]);
   const [actLoading, setActLoading] = useState(true);
+  const [mapFilters, setMapFilters] = useState({ categoria: '', estado: '', soloMios: false, dateFrom: '', dateTo: '' });
 
   const fetchHealth = async () => {
     setLoading(true);
@@ -114,6 +115,23 @@ export default function Dashboard() {
   const misPendientes = misReportes.filter(r => r.estado === 'pendiente' || r.estado === 'en_revision').length;
   const misResueltos  = misReportes.filter(r => r.estado === 'resuelto').length;
   const misCriticos   = misReportes.filter(r => r.nivel_severidad === 'critico' || r.nivel_severidad === 'alto').length;
+
+  // FE-17: filtros del mapa (client-side, tiempo real)
+  const mapReports = useMemo(() => {
+    let list = activity;
+    if (mapFilters.soloMios) list = list.filter(r => Number(r.id_usuario) === Number(user?.id_usuario));
+    if (mapFilters.categoria) list = list.filter(r => r.tipo_contaminacion === mapFilters.categoria);
+    if (mapFilters.estado) list = list.filter(r => r.estado === mapFilters.estado);
+    if (mapFilters.dateFrom) list = list.filter(r => new Date(r.created_at) >= new Date(mapFilters.dateFrom));
+    if (mapFilters.dateTo) list = list.filter(r => new Date(r.created_at) <= new Date(mapFilters.dateTo + 'T23:59:59'));
+    return list;
+  }, [activity, mapFilters, user]);
+
+  const hasMapFilters = mapFilters.categoria || mapFilters.estado || mapFilters.soloMios || mapFilters.dateFrom || mapFilters.dateTo;
+  const resetMapFilters = () => setMapFilters({ categoria: '', estado: '', soloMios: false, dateFrom: '', dateTo: '' });
+
+  const MAP_ESTADO_LABEL = { pendiente: 'Pendiente', en_revision: 'En revisión', en_proceso: 'En proceso', verificado: 'Verificado', resuelto: 'Resuelto', rechazado: 'Rechazado' };
+  const mapSelectCls = 'bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-green-500 transition-colors';
 
   // Donut chart data — siempre muestra la distribución comunitaria
   const donutSource = activity;
@@ -364,7 +382,7 @@ export default function Dashboard() {
               Ver todos <ArrowRight size={11} />
             </Link>
           </div>
-          <div className="flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: '340px' }}>
+          <div className="flex flex-col gap-2 overflow-y-auto scrollbar-dark" style={{ maxHeight: '340px' }}>
             {actLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="p-3 rounded-lg border-l-4 border-l-gray-700 bg-gray-800/30 animate-pulse">
@@ -431,20 +449,151 @@ export default function Dashboard() {
         </div>
       </section>
       <section>
+        {/* ── Header + leyenda ── */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <h2 className="font-semibold text-white">Mapa de reportes</h2>
+          <div>
+            <h2 className="font-semibold text-white">Mapa de reportes</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {mapReports.length} reporte{mapReports.length !== 1 ? 's' : ''} visible{mapReports.length !== 1 ? 's' : ''}
+            </p>
+          </div>
           <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400">
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block" />Crítico</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" />Alta</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 inline-block" />Media</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-green-400 inline-block" />Baja</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />Pendiente</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-orange-400 inline-block" />En proceso</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-400 inline-block" />Resuelto</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gray-500 inline-block" />Rechazado</span>
           </div>
         </div>
+
+        {/* ── FE-17: Panel de filtros ── */}
+        <motion.div
+          className="bg-gray-900/60 border border-gray-800 rounded-2xl p-4 mb-4 space-y-3"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.12 }}
+        >
+          <div className="flex flex-wrap gap-2 items-center">
+            <div className="flex items-center gap-1.5 text-gray-500 shrink-0 mr-0.5">
+              <Filter size={13} />
+              <span className="text-[11px] font-semibold uppercase tracking-wide">Filtros</span>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-0.5 flex-1">
+              <select
+                value={mapFilters.categoria}
+                onChange={e => setMapFilters(f => ({ ...f, categoria: e.target.value }))}
+                className={mapSelectCls}
+              >
+                <option value="">Todas las categorías</option>
+                {Object.entries(CONFIGURACION_CATEGORIAS).map(([key, cfg]) => (
+                  <option key={key} value={key}>{cfg.nombre}</option>
+                ))}
+              </select>
+              <select
+                value={mapFilters.estado}
+                onChange={e => setMapFilters(f => ({ ...f, estado: e.target.value }))}
+                className={mapSelectCls}
+              >
+                <option value="">Todos los estados</option>
+                {Object.entries(MAP_ESTADO_LABEL).map(([k, v]) => (
+                  <option key={k} value={k}>{v}</option>
+                ))}
+              </select>
+              <input
+                type="date"
+                value={mapFilters.dateFrom}
+                onChange={e => setMapFilters(f => ({ ...f, dateFrom: e.target.value }))}
+                className={mapSelectCls}
+                title="Desde"
+              />
+              <input
+                type="date"
+                value={mapFilters.dateTo}
+                onChange={e => setMapFilters(f => ({ ...f, dateTo: e.target.value }))}
+                className={mapSelectCls}
+                title="Hasta"
+              />
+            </div>
+            {rol === 'ciudadano' && (
+              <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer select-none shrink-0">
+                <input
+                  type="checkbox"
+                  checked={mapFilters.soloMios}
+                  onChange={e => setMapFilters(f => ({ ...f, soloMios: e.target.checked }))}
+                  className="w-4 h-4 accent-green-500 rounded"
+                />
+                Solo los míos
+              </label>
+            )}
+          </div>
+
+          {/* Badges de filtros activos */}
+          <AnimatePresence>
+            {hasMapFilters && (
+              <motion.div
+                className="flex flex-wrap gap-2 items-center"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                {mapFilters.categoria && (
+                  <button
+                    onClick={() => setMapFilters(f => ({ ...f, categoria: '' }))}
+                    className="badge bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 transition-colors"
+                  >
+                    {CONFIGURACION_CATEGORIAS[mapFilters.categoria]?.nombre ?? mapFilters.categoria}
+                    <X size={11} />
+                  </button>
+                )}
+                {mapFilters.estado && (
+                  <button
+                    onClick={() => setMapFilters(f => ({ ...f, estado: '' }))}
+                    className="badge bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-colors"
+                  >
+                    {MAP_ESTADO_LABEL[mapFilters.estado] ?? mapFilters.estado}
+                    <X size={11} />
+                  </button>
+                )}
+                {mapFilters.dateFrom && (
+                  <button
+                    onClick={() => setMapFilters(f => ({ ...f, dateFrom: '' }))}
+                    className="badge bg-gray-500/10 text-gray-400 border border-gray-700 hover:bg-gray-500/20 transition-colors"
+                  >
+                    Desde: {mapFilters.dateFrom} <X size={11} />
+                  </button>
+                )}
+                {mapFilters.dateTo && (
+                  <button
+                    onClick={() => setMapFilters(f => ({ ...f, dateTo: '' }))}
+                    className="badge bg-gray-500/10 text-gray-400 border border-gray-700 hover:bg-gray-500/20 transition-colors"
+                  >
+                    Hasta: {mapFilters.dateTo} <X size={11} />
+                  </button>
+                )}
+                {mapFilters.soloMios && (
+                  <button
+                    onClick={() => setMapFilters(f => ({ ...f, soloMios: false }))}
+                    className="badge bg-violet-500/10 text-violet-400 border border-violet-500/20 hover:bg-violet-500/20 transition-colors"
+                  >
+                    Solo los míos <X size={11} />
+                  </button>
+                )}
+                <button
+                  onClick={resetMapFilters}
+                  className="text-xs text-gray-500 hover:text-red-400 transition-colors ml-1"
+                >
+                  Limpiar todo
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+
         <div className="rounded-xl overflow-hidden border border-gray-800 h-72 sm:h-[420px] lg:h-[560px]">
           <Suspense fallback={
             <div className="h-full flex items-center justify-center bg-gray-900 text-gray-500 text-sm">Cargando mapa…</div>
           }>
-            <ReportsMap reports={activity} />
+            <ReportsMap reports={mapReports} />
           </Suspense>
         </div>
       </section>
