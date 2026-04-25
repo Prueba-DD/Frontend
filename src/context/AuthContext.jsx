@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { loginUser, registerUser, getPerfil } from '../services/api';
+import { loginUser, registerUser, getPerfil, oauthGoogle, oauthGitHub } from '../services/api';
 import { useToast } from './ToastContext';
 
 const AuthContext = createContext(null);
@@ -52,6 +52,25 @@ export function AuthProvider({ children }) {
     return userData;
   };
 
+  const _saveSession = (token, userData) => {
+    localStorage.setItem('ga_token', token);
+    localStorage.setItem('ga_user', JSON.stringify(userData));
+    setUser(userData);
+    return userData;
+  };
+
+  const loginWithGoogle = async (accessToken) => {
+    const res = await oauthGoogle(accessToken);
+    const { token, user: userData } = res.data.data;
+    return _saveSession(token, userData);
+  };
+
+  const loginWithGitHub = async (code) => {
+    const res = await oauthGitHub(code);
+    const { token, user: userData } = res.data.data;
+    return _saveSession(token, userData);
+  };
+
   const logout = () => {
     localStorage.removeItem('ga_token');
     localStorage.removeItem('ga_user');
@@ -60,7 +79,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser, loginWithGoogle, loginWithGitHub }}>
       {children}
     </AuthContext.Provider>
   );
