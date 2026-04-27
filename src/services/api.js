@@ -31,8 +31,8 @@ export const checkHealth = () => api.get('/health');
 // ── Auth ──
 export const loginUser    = (email, password)                                   => api.post('/auth/login',    { email, password });
 export const registerUser = (nombre, apellido, email, password, telefono)       => api.post('/auth/register', { nombre, apellido, email, password, telefono });
-export const oauthGoogle  = (access_token)                                      => api.post('/auth/google',   { access_token });
-export const oauthGitHub  = (code)                                              => api.post('/auth/github',   { code });
+export const oauthGoogle   = (access_token) => api.post('/auth/google',   { access_token });
+export const oauthFacebook = (code)          => api.post('/auth/facebook', { code });
 
 // ── Categorías ──
 export const getCategorias         = ()       => api.get('/categorias');

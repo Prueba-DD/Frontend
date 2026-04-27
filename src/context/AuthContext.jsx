@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { loginUser, registerUser, getPerfil, oauthGoogle, oauthGitHub } from '../services/api';
+import { loginUser, registerUser, getPerfil, oauthGoogle, oauthFacebook } from '../services/api';
 import { useToast } from './ToastContext';
 
 const AuthContext = createContext(null);
@@ -65,8 +65,8 @@ export function AuthProvider({ children }) {
     return _saveSession(token, userData);
   };
 
-  const loginWithGitHub = async (code) => {
-    const res = await oauthGitHub(code);
+  const loginWithFacebook = async (code) => {
+    const res = await oauthFacebook(code);
     const { token, user: userData } = res.data.data;
     return _saveSession(token, userData);
   };
@@ -79,7 +79,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser, loginWithGoogle, loginWithGitHub }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser, loginWithGoogle, loginWithFacebook }}>
       {children}
     </AuthContext.Provider>
   );

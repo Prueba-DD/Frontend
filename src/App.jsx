@@ -26,7 +26,7 @@ import AdminPanel from './pages/AdminPanel';
 import AdminUsuarios from './pages/AdminUsuarios';
 import PoliticaPrivacidad from './pages/PoliticaPrivacidad';
 import TerminosCondiciones from './pages/TerminosCondiciones';
-import GitHubCallback from './pages/GitHubCallback';
+import FacebookCallback from './pages/FacebookCallback';
 
 function HomeRoute() {
   const { user } = useAuth();
@@ -54,7 +54,7 @@ export default function App() {
             <Route path="/register"         element={<Auth />} />
             <Route path="/forgot-password"  element={<ForgotPassword />} />
             <Route path="/reset-password"   element={<ResetPassword />} />
-            <Route path="/auth/callback/github" element={<GitHubCallback />} />
+            <Route path="/auth/callback/facebook"  element={<FacebookCallback />} />
 
             {/* ── Rutas protegidas: cualquier usuario autenticado ── */}
             <Route element={<ProtectedRoute />}>
