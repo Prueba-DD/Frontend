@@ -40,12 +40,17 @@ export const getCategoriaPorCodigo = (codigo) => api.get(`/categorias/${codigo}`
 
 // ── Reportes ──
 export const getStats       = ()           => api.get('/reportes/stats');
+// FE-20: stats analíticas
+export const getStatsCategoria = ()                  => api.get('/reportes/stats/categoria');
+export const getStatsTimeline  = (params)            => api.get('/reportes/stats/timeline', { params });
+export const getHeatmapPoints  = ()                  => api.get('/reportes/stats/heatmap');
 export const createReporte  = (data) => api.post('/reportes', data);
 export const getReportes    = (params)     => api.get('/reportes', { params });
 export const getReporteById = (id, skipView = false) =>
   api.get(`/reportes/${id}`, skipView ? { params: { skip_view: 'true' } } : {});
 export const updateReporte  = (id, data)   => api.patch(`/reportes/${id}`, data);
 export const deleteReporte  = (id)         => api.delete(`/reportes/${id}`);
+export const exportReportes = (params)     => api.get('/reportes/export', { params });
 
 // ── Perfil / Auth ──
 export const getPerfil            = ()                                               => api.get('/auth/perfil');
