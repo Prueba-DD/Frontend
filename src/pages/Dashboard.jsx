@@ -1,11 +1,18 @@
 import { useEffect, useState, useRef, lazy, Suspense, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+  dashboard-graficos-headmap
 import { checkHealth, getStats, getReportes, exportReportes, getStatsCategoria, getStatsTimeline, getHeatmapPoints } from '../services/api';
+=======
+import { checkHealth, getStats, getReportes, exportReportes } from '../services/api';
+  main
 import {
   ClipboardList, Search, CheckCircle2, Users,
   MapPin, TrendingUp, ArrowRight, Activity, Clock, Filter, X,
   AlertCircle, Percent, FileDown, Loader2,
+  dashboard-graficos-headmap
   BarChart3, LineChart as LineIcon, Flame,
+=======
+  main
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CountUp } from '../utils/animations.jsx';
@@ -13,8 +20,11 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { helpers, CONFIGURACION_CATEGORIAS } from '../constants/categorias';
 import { generarReportesPDF } from '../utils/reportesPdf';
+  dashboard-graficos-headmap
 import BarChart from '../components/charts/BarChart';
 import LineChart from '../components/charts/LineChart';
+=======
+  main
 
 const ReportsMap = lazy(() => import('../components/ReportsMap'));
 
@@ -137,6 +147,7 @@ export default function Dashboard() {
       .catch(() => setActLoading(false));
   }, []);
 
+  dashboard-graficos-headmap
   // FE-20: carga de datos analíticos (solo admin/moderador) — paralelo
   useEffect(() => {
     if (user?.rol !== 'admin' && user?.rol !== 'moderador') return;
@@ -158,6 +169,8 @@ export default function Dashboard() {
       .catch(() => setTimelineData([]));
   }, [user?.rol, bucket]);
 
+=======
+  main
   // FE-21: auto-refresh KPIs cada 30s (solo admin/moderador, evita carga innecesaria)
   useEffect(() => {
     if (user?.rol !== 'admin' && user?.rol !== 'moderador') return;
