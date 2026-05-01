@@ -40,6 +40,10 @@ export const getCategoriaPorCodigo = (codigo) => api.get(`/categorias/${codigo}`
 
 // ── Reportes ──
 export const getStats       = ()           => api.get('/reportes/stats');
+// FE-20: stats analíticas
+export const getStatsCategoria = ()                  => api.get('/reportes/stats/categoria');
+export const getStatsTimeline  = (params)            => api.get('/reportes/stats/timeline', { params });
+export const getHeatmapPoints  = ()                  => api.get('/reportes/stats/heatmap');
 export const createReporte  = (data) => api.post('/reportes', data);
 export const getReportes    = (params)     => api.get('/reportes', { params });
 export const getReporteById = (id, skipView = false) =>

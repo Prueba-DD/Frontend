@@ -1,10 +1,18 @@
 import { useEffect, useState, useRef, lazy, Suspense, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+  dashboard-graficos-headmap
+import { checkHealth, getStats, getReportes, exportReportes, getStatsCategoria, getStatsTimeline, getHeatmapPoints } from '../services/api';
+=======
 import { checkHealth, getStats, getReportes, exportReportes } from '../services/api';
+  main
 import {
   ClipboardList, Search, CheckCircle2, Users,
   MapPin, TrendingUp, ArrowRight, Activity, Clock, Filter, X,
   AlertCircle, Percent, FileDown, Loader2,
+  dashboard-graficos-headmap
+  BarChart3, LineChart as LineIcon, Flame,
+=======
+  main
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CountUp } from '../utils/animations.jsx';
@@ -12,6 +20,11 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { helpers, CONFIGURACION_CATEGORIAS } from '../constants/categorias';
 import { generarReportesPDF } from '../utils/reportesPdf';
+  dashboard-graficos-headmap
+import BarChart from '../components/charts/BarChart';
+import LineChart from '../components/charts/LineChart';
+=======
+  main
 
 const ReportsMap = lazy(() => import('../components/ReportsMap'));
 
@@ -89,6 +102,14 @@ export default function Dashboard() {
   const [exporting,  setExporting]  = useState(false);
   const [mapFilters, setMapFilters] = useState({ categoria: '', estado: '', soloMios: false, dateFrom: '', dateTo: '' });
 
+  // FE-20: estado de gráficos analíticos y heatmap
+  const [catData,      setCatData]      = useState([]);
+  const [timelineData, setTimelineData] = useState([]);
+  const [bucket,       setBucket]       = useState('week');
+  const [heatmapPoints, setHeatmapPoints] = useState([]);
+  const [mapMode,      setMapMode]      = useState('cluster'); // 'cluster' | 'heatmap'
+  const [chartsLoading, setChartsLoading] = useState(true);
+
   const fetchHealth = async () => {
     setLoading(true);
     try {
@@ -126,6 +147,30 @@ export default function Dashboard() {
       .catch(() => setActLoading(false));
   }, []);
 
+  dashboard-graficos-headmap
+  // FE-20: carga de datos analíticos (solo admin/moderador) — paralelo
+  useEffect(() => {
+    if (user?.rol !== 'admin' && user?.rol !== 'moderador') return;
+    setChartsLoading(true);
+    Promise.allSettled([
+      getStatsCategoria(),
+      getHeatmapPoints(),
+    ]).then(([cat, heat]) => {
+      if (cat.status === 'fulfilled') setCatData(cat.value.data?.data?.data ?? []);
+      if (heat.status === 'fulfilled') setHeatmapPoints(heat.value.data?.data?.data ?? []);
+    }).finally(() => setChartsLoading(false));
+  }, [user?.rol]);
+
+  // FE-20: timeline depende de bucket (week/month) — refetch al cambiar
+  useEffect(() => {
+    if (user?.rol !== 'admin' && user?.rol !== 'moderador') return;
+    getStatsTimeline({ bucket, limit: 12 })
+      .then(({ data }) => setTimelineData(data?.data?.data ?? []))
+      .catch(() => setTimelineData([]));
+  }, [user?.rol, bucket]);
+
+=======
+  main
   // FE-21: auto-refresh KPIs cada 30s (solo admin/moderador, evita carga innecesaria)
   useEffect(() => {
     if (user?.rol !== 'admin' && user?.rol !== 'moderador') return;
@@ -533,20 +578,151 @@ export default function Dashboard() {
           </div>
         </div>
       </section>
+
+      {/* ── FE-20: Sección de gráficos analíticos (solo admin/moderador) ── */}
+      {isAdmin && (
+        <section className="mb-8 grid lg:grid-cols-2 gap-5">
+
+          {/* Bar chart por categoría */}
+          <motion.div
+            className="card flex flex-col gap-4"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <BarChart3 size={16} className="text-green-400" />
+                <div>
+                  <h2 className="font-semibold text-white text-sm">Reportes por categoría</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">Top {Math.min(catData.length, 8)} · todos los tiempos</p>
+                </div>
+              </div>
+            </div>
+            {chartsLoading ? (
+              <div className="space-y-2.5 py-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="h-5 bg-gray-800/40 rounded-md animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <BarChart
+                data={catData.map(d => {
+                  const cfg = helpers.obtenerConfig(d.categoria);
+                  return {
+                    label: cfg?.nombre ?? d.categoria,
+                    value: Number(d.total) || 0,
+                    color: cfg?.color ?? '#22c55e',
+                  };
+                })}
+              />
+            )}
+          </motion.div>
+
+          {/* Line chart temporal */}
+          <motion.div
+            className="card flex flex-col gap-4"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.08 }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <LineIcon size={16} className="text-green-400" />
+                <div>
+                  <h2 className="font-semibold text-white text-sm">Línea temporal</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Últimas {timelineData.length} {bucket === 'week' ? 'semanas' : 'meses'}
+                  </p>
+                </div>
+              </div>
+              {/* Toggle bucket */}
+              <div className="flex bg-gray-900 border border-gray-800 rounded-lg p-0.5 text-xs">
+                <button
+                  onClick={() => setBucket('week')}
+                  className={`px-3 py-1 rounded-md transition-colors ${
+                    bucket === 'week'
+                      ? 'bg-green-600 text-white'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  Semana
+                </button>
+                <button
+                  onClick={() => setBucket('month')}
+                  className={`px-3 py-1 rounded-md transition-colors ${
+                    bucket === 'month'
+                      ? 'bg-green-600 text-white'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  Mes
+                </button>
+              </div>
+            </div>
+            {chartsLoading ? (
+              <div className="h-44 bg-gray-800/40 rounded-md animate-pulse" />
+            ) : (
+              <LineChart data={timelineData} bucket={bucket} />
+            )}
+          </motion.div>
+        </section>
+      )}
+
       <section>
         {/* ── Header + leyenda ── */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
             <h2 className="font-semibold text-white">Mapa de reportes</h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              {mapReports.length} reporte{mapReports.length !== 1 ? 's' : ''} visible{mapReports.length !== 1 ? 's' : ''}
+              {mapMode === 'heatmap'
+                ? `${heatmapPoints.length} punto${heatmapPoints.length !== 1 ? 's' : ''} en el mapa de calor`
+                : `${mapReports.length} reporte${mapReports.length !== 1 ? 's' : ''} visible${mapReports.length !== 1 ? 's' : ''}`}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400">
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />Pendiente</span>
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-orange-400 inline-block" />En proceso</span>
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-400 inline-block" />Resuelto</span>
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gray-500 inline-block" />Rechazado</span>
+            {/* FE-20: toggle heatmap (solo admin/moderador) */}
+            {isAdmin && (
+              <div className="flex bg-gray-900 border border-gray-800 rounded-lg p-0.5">
+                <button
+                  onClick={() => setMapMode('cluster')}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors ${
+                    mapMode === 'cluster'
+                      ? 'bg-green-600 text-white'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                  title="Ver markers agrupados"
+                >
+                  <MapPin size={12} /> Markers
+                </button>
+                <button
+                  onClick={() => setMapMode('heatmap')}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors ${
+                    mapMode === 'heatmap'
+                      ? 'bg-orange-600 text-white'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                  title="Ver mapa de calor por severidad"
+                >
+                  <Flame size={12} /> Heatmap
+                </button>
+              </div>
+            )}
+            {mapMode === 'cluster' ? (
+              <>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />Pendiente</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-orange-400 inline-block" />En proceso</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-400 inline-block" />Resuelto</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gray-500 inline-block" />Rechazado</span>
+              </>
+            ) : (
+              <>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />Bajo</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-yellow-400 inline-block" />Medio</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" />Alto</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-600 inline-block" />Crítico</span>
+              </>
+            )}
           </div>
         </div>
 
@@ -693,7 +869,10 @@ export default function Dashboard() {
           <Suspense fallback={
             <div className="h-full flex items-center justify-center bg-gray-900 text-gray-500 text-sm">Cargando mapa…</div>
           }>
-            <ReportsMap reports={mapReports} />
+            <ReportsMap
+              reports={mapMode === 'heatmap' ? heatmapPoints : mapReports}
+              mode={mapMode}
+            />
           </Suspense>
         </div>
       </section>

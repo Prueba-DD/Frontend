@@ -66,7 +66,59 @@ function FitBounds({ points }) {
   return null;
 }
 
-export default memo(function ReportsMap({ reports = [] }) {
+// FE-20: capa de calor — carga dinámica de leaflet.heat (3KB, fuera del bundle inicial)
+const SEVERIDAD_INTENSIDAD = { critico: 1.0, alto: 0.75, medio: 0.5, bajo: 0.25 };
+
+function HeatLayer({ points }) {
+  const map = useMap();
+  const layerRef = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      await import('leaflet.heat');
+      if (cancelled) return;
+      // Limpia capa previa si existe
+      if (layerRef.current) {
+        map.removeLayer(layerRef.current);
+        layerRef.current = null;
+      }
+      const heatPoints = points
+        .filter(p => p.latitud && p.longitud)
+        .map(p => [
+          parseFloat(p.latitud),
+          parseFloat(p.longitud),
+          SEVERIDAD_INTENSIDAD[p.nivel_severidad] ?? 0.4,
+        ]);
+      if (!heatPoints.length) return;
+      // eslint-disable-next-line new-cap
+      layerRef.current = L.heatLayer(heatPoints, {
+        radius: 28,
+        blur: 22,
+        maxZoom: 14,
+        max: 1.0,
+        gradient: {
+          0.2: '#22c55e',
+          0.4: '#facc15',
+          0.6: '#fb923c',
+          0.8: '#ef4444',
+          1.0: '#dc2626',
+        },
+      }).addTo(map);
+    })();
+    return () => {
+      cancelled = true;
+      if (layerRef.current) {
+        map.removeLayer(layerRef.current);
+        layerRef.current = null;
+      }
+    };
+  }, [map, points]);
+
+  return null;
+}
+
+export default memo(function ReportsMap({ reports = [], mode = 'cluster' }) {
   const navigate = useNavigate();
   const withCoords = reports.filter((r) => r.latitud && r.longitud);
 
@@ -94,7 +146,10 @@ export default memo(function ReportsMap({ reports = [] }) {
       />
       <FitBounds points={withCoords} />
 
-      <MarkerClusterGroup chunkedLoading>
+      {mode === 'heatmap' ? (
+        <HeatLayer points={withCoords} />
+      ) : (
+        <MarkerClusterGroup chunkedLoading>
         {withCoords.map((r) => {
         const cfg       = helpers.obtenerConfig(r.tipo_contaminacion);
         const catColor  = cfg?.color ?? '#94a3b8';
@@ -170,6 +225,7 @@ export default memo(function ReportsMap({ reports = [] }) {
         );
       })}
       </MarkerClusterGroup>
+      )}
     </MapContainer>
   );
 });
