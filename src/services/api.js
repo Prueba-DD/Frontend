@@ -46,6 +46,7 @@ export const getReporteById = (id, skipView = false) =>
   api.get(`/reportes/${id}`, skipView ? { params: { skip_view: 'true' } } : {});
 export const updateReporte  = (id, data)   => api.patch(`/reportes/${id}`, data);
 export const deleteReporte  = (id)         => api.delete(`/reportes/${id}`);
+export const exportReportes = (params)     => api.get('/reportes/export', { params });
 
 // ── Perfil / Auth ──
 export const getPerfil            = ()                                               => api.get('/auth/perfil');

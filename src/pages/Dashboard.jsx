@@ -1,14 +1,17 @@
-import { useEffect, useState, useRef, lazy, Suspense, useMemo } from 'react';
+import { useEffect, useState, useRef, lazy, Suspense, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { checkHealth, getStats, getReportes } from '../services/api';
+import { checkHealth, getStats, getReportes, exportReportes } from '../services/api';
 import {
   ClipboardList, Search, CheckCircle2, Users,
   MapPin, TrendingUp, ArrowRight, Activity, Clock, Filter, X,
+  AlertCircle, Percent, FileDown, Loader2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CountUp } from '../utils/animations.jsx';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { helpers, CONFIGURACION_CATEGORIAS } from '../constants/categorias';
+import { generarReportesPDF } from '../utils/reportesPdf';
 
 const ReportsMap = lazy(() => import('../components/ReportsMap'));
 
@@ -76,11 +79,14 @@ function DonutChart({ segments, total }) {
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [health,     setHealth]     = useState({ status: 'cargando', database: '...', timestamp: null });
   const [loading,    setLoading]    = useState(true);
   const [stats,      setStats]      = useState(null);
+  const [statsRefreshing, setStatsRefreshing] = useState(false);
   const [activity,   setActivity]   = useState([]);
   const [actLoading, setActLoading] = useState(true);
+  const [exporting,  setExporting]  = useState(false);
   const [mapFilters, setMapFilters] = useState({ categoria: '', estado: '', soloMios: false, dateFrom: '', dateTo: '' });
 
   const fetchHealth = async () => {
@@ -95,6 +101,21 @@ export default function Dashboard() {
     }
   };
 
+  // FE-21: refresca stats + actividad sin tocar loaders del primer render
+  const refreshData = useCallback(async ({ silent = true } = {}) => {
+    if (!silent) setStatsRefreshing(true);
+    try {
+      const [s, r] = await Promise.allSettled([
+        getStats(),
+        getReportes({ limit: 50 }),
+      ]);
+      if (s.status === 'fulfilled') setStats(s.value.data.data.stats);
+      if (r.status === 'fulfilled') setActivity(r.value.data.data.reportes ?? []);
+    } finally {
+      if (!silent) setStatsRefreshing(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchHealth();
     getStats()
@@ -104,6 +125,47 @@ export default function Dashboard() {
       .then(({ data }) => { setActivity(data.data.reportes ?? []); setActLoading(false); })
       .catch(() => setActLoading(false));
   }, []);
+
+  // FE-21: auto-refresh KPIs cada 30s (solo admin/moderador, evita carga innecesaria)
+  useEffect(() => {
+    if (user?.rol !== 'admin' && user?.rol !== 'moderador') return;
+    const id = setInterval(() => {
+      setStatsRefreshing(true);
+      refreshData({ silent: true }).finally(() => setStatsRefreshing(false));
+    }, 30000);
+    return () => clearInterval(id);
+  }, [user?.rol, refreshData]);
+
+  // FE-21: descarga PDF estilizado con los reportes filtrados (mismo estilo que DescargarDatos)
+  const handleExportPdf = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const params = { format: 'json' };
+      if (mapFilters.categoria) params.tipo_contaminacion = mapFilters.categoria;
+      if (mapFilters.estado)    params.estado            = mapFilters.estado;
+      if (mapFilters.dateFrom)  params.desde             = mapFilters.dateFrom;
+      if (mapFilters.dateTo)    params.hasta             = mapFilters.dateTo + ' 23:59:59';
+
+      const { data } = await exportReportes(params);
+      const reportes = data?.data?.reportes ?? [];
+
+      await generarReportesPDF({
+        reportes,
+        stats: stats ?? {},
+        filtros: mapFilters,
+        usuario: [user?.nombre, user?.apellido].filter(Boolean).join(' ') || user?.email || '',
+      });
+      showToast('PDF generado correctamente.', 'success');
+    } catch (err) {
+      const msg = err?.response?.status === 403
+        ? 'No tienes permiso para exportar.'
+        : 'No se pudo generar el PDF.';
+      showToast(msg, 'error');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const isOk    = health.status === 'ok';
   const isAdmin = user?.rol === 'admin' || user?.rol === 'moderador';
@@ -115,6 +177,11 @@ export default function Dashboard() {
   const misPendientes = misReportes.filter(r => r.estado === 'pendiente' || r.estado === 'en_revision').length;
   const misResueltos  = misReportes.filter(r => r.estado === 'resuelto').length;
   const misCriticos   = misReportes.filter(r => r.nivel_severidad === 'critico' || r.nivel_severidad === 'alto').length;
+
+  // FE-21: % resolución calculado a partir de stats globales (sin NaN si total=0)
+  const porcentajeResolucion = stats?.total_reportes > 0
+    ? Math.round((Number(stats.resueltos) / Number(stats.total_reportes)) * 100)
+    : 0;
 
   // FE-17: filtros del mapa (client-side, tiempo real)
   const mapReports = useMemo(() => {
@@ -160,18 +227,22 @@ export default function Dashboard() {
   ] : rol === 'moderador' ? [
     // Cola de trabajo del moderador
     { label: 'En revisión',     Icon: Search,        value: stats?.en_revision,        accent: 'text-amber-400',   border: 'border-t-amber-500',   bg: 'bg-amber-500/15',   glow: '#f59e0b', tooltip: 'Pendientes de revisión en la plataforma' },
+    { label: 'Pendientes',      Icon: AlertCircle,   value: stats?.pendientes,         accent: 'text-rose-400',    border: 'border-t-rose-500',    bg: 'bg-rose-500/15',    glow: '#f43f5e', tooltip: 'Reportes en estado pendiente, sin asignar aún' },
     { label: 'Total reportes',  Icon: TrendingUp,    value: stats?.total_reportes,     accent: 'text-blue-400',    border: 'border-t-blue-500',    bg: 'bg-blue-500/15',    glow: '#3b82f6', tooltip: 'Volumen total de reportes' },
     { label: 'Resueltos',       Icon: CheckCircle2,  value: stats?.resueltos,          accent: 'text-green-400',   border: 'border-t-green-500',   bg: 'bg-green-500/15',   glow: '#22c55e', tooltip: 'Reportes gestionados exitosamente' },
+    { label: '% Resolución',    Icon: Percent,       value: porcentajeResolucion,      suffix: '%', accent: 'text-teal-400',  border: 'border-t-teal-500',    bg: 'bg-teal-500/15',    glow: '#14b8a6', tooltip: 'Porcentaje de reportes que terminaron en estado resuelto' },
     { label: 'Municipios',      Icon: MapPin,        value: stats?.municipios_activos, accent: 'text-violet-400',  border: 'border-t-violet-500',  bg: 'bg-violet-500/15',  glow: '#8b5cf6', tooltip: 'Municipios activos en la plataforma' },
     { label: 'Este mes',        Icon: ClipboardList, value: stats?.reportes_este_mes,  accent: 'text-emerald-400', border: 'border-t-emerald-500', bg: 'bg-emerald-500/15', glow: '#10b981', tooltip: 'Nuevos reportes en el mes actual' },
     { label: 'Usuarios',        Icon: Users,         value: stats?.total_usuarios,     accent: 'text-orange-400',  border: 'border-t-orange-500',  bg: 'bg-orange-500/15',  glow: '#f97316', tooltip: 'Ciudadanos registrados' },
   ] : [
     // Admin — visión completa del sistema
     { label: 'Total reportes',  Icon: TrendingUp,    value: stats?.total_reportes,     accent: 'text-blue-400',    border: 'border-t-blue-500',    bg: 'bg-blue-500/15',    glow: '#3b82f6', tooltip: 'Total de reportes en la plataforma' },
+    { label: 'Resueltos',       Icon: CheckCircle2,  value: stats?.resueltos,          accent: 'text-green-400',   border: 'border-t-green-500',   bg: 'bg-green-500/15',   glow: '#22c55e', tooltip: 'Reportes cerrados exitosamente' },
+    { label: 'Pendientes',      Icon: AlertCircle,   value: stats?.pendientes,         accent: 'text-rose-400',    border: 'border-t-rose-500',    bg: 'bg-rose-500/15',    glow: '#f43f5e', tooltip: 'Reportes en estado pendiente, sin moderar' },
+    { label: '% Resolución',    Icon: Percent,       value: porcentajeResolucion,      suffix: '%', accent: 'text-teal-400',  border: 'border-t-teal-500',    bg: 'bg-teal-500/15',    glow: '#14b8a6', tooltip: 'Porcentaje del total que terminó en estado resuelto' },
+    { label: 'En revisión',     Icon: Search,        value: stats?.en_revision,        accent: 'text-amber-400',   border: 'border-t-amber-500',   bg: 'bg-amber-500/15',   glow: '#f59e0b', tooltip: 'Esperando revisión' },
     { label: 'Municipios',      Icon: MapPin,        value: stats?.municipios_activos, accent: 'text-violet-400',  border: 'border-t-violet-500',  bg: 'bg-violet-500/15',  glow: '#8b5cf6', tooltip: 'Municipios con reportes activos' },
     { label: 'Este mes',        Icon: ClipboardList, value: stats?.reportes_este_mes,  accent: 'text-emerald-400', border: 'border-t-emerald-500', bg: 'bg-emerald-500/15', glow: '#10b981', tooltip: 'Nuevos reportes este mes' },
-    { label: 'En revisión',     Icon: Search,        value: stats?.en_revision,        accent: 'text-amber-400',   border: 'border-t-amber-500',   bg: 'bg-amber-500/15',   glow: '#f59e0b', tooltip: 'Esperando revisión' },
-    { label: 'Resueltos',       Icon: CheckCircle2,  value: stats?.resueltos,          accent: 'text-green-400',   border: 'border-t-green-500',   bg: 'bg-green-500/15',   glow: '#22c55e', tooltip: 'Reportes cerrados exitosamente' },
     { label: 'Usuarios',        Icon: Users,         value: stats?.total_usuarios,     accent: 'text-orange-400',  border: 'border-t-orange-500',  bg: 'bg-orange-500/15',  glow: '#f97316', tooltip: 'Total de usuarios registrados' },
   ];
 
@@ -198,6 +269,17 @@ export default function Dashboard() {
               : 'Panel de administración — vista completa del sistema.'}
           </p>
         </div>
+
+        {/* FE-21: indicador discreto de auto-refresh KPIs (solo admin/moderador) */}
+        {isAdmin && statsRefreshing && (
+          <span
+            className="flex items-center gap-1.5 text-[11px] text-gray-500 shrink-0"
+            title="Actualizando KPIs en tiempo real"
+          >
+            <Loader2 size={12} className="animate-spin" />
+            <span className="hidden sm:inline">Actualizando…</span>
+          </span>
+        )}
         {/* Server status card */}
         <div className={`flex items-center gap-3 px-4 py-2.5 rounded-2xl border shrink-0 transition-colors ${
           loading
@@ -266,7 +348,7 @@ export default function Dashboard() {
 
       {/* ── KPI Cards — comunidad ───────────────────────────────────── */}
       <section className="mb-4">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className={`grid grid-cols-2 sm:grid-cols-3 ${statsCards.length > 6 ? 'lg:grid-cols-4' : 'lg:grid-cols-6'} gap-3`}>
           {statsCards.map((s, i) => (
             <motion.div
               key={s.label}
@@ -284,7 +366,10 @@ export default function Dashboard() {
                 <s.Icon className={`w-[18px] h-[18px] ${s.accent}`} />
               </div>
               <div>
-                <CountUp target={s.value} className={`text-2xl sm:text-3xl font-extrabold block ${s.accent}`} />
+                <div className="flex items-baseline gap-0.5">
+                  <CountUp target={s.value} className={`text-2xl sm:text-3xl font-extrabold ${s.accent}`} />
+                  {s.suffix && <span className={`text-lg sm:text-xl font-extrabold ${s.accent}`}>{s.suffix}</span>}
+                </div>
                 <p className="text-[11px] text-gray-500 mt-0.5 leading-tight">{s.label}</p>
               </div>
             </motion.div>
@@ -523,6 +608,21 @@ export default function Dashboard() {
                 />
                 Solo los míos
               </label>
+            )}
+
+            {/* FE-21: Exportar reportes filtrados a PDF (solo admin/moderador) */}
+            {isAdmin && (
+              <button
+                onClick={handleExportPdf}
+                disabled={exporting}
+                title={`Exportar ${mapReports.length} reporte${mapReports.length !== 1 ? 's' : ''} filtrado${mapReports.length !== 1 ? 's' : ''} a PDF`}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border border-green-700/50 bg-green-950/30 hover:bg-green-900/40 hover:border-green-600 text-green-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+              >
+                {exporting
+                  ? <Loader2 size={13} className="animate-spin" />
+                  : <FileDown size={13} />}
+                {exporting ? 'Generando…' : 'Exportar PDF'}
+              </button>
             )}
           </div>
 
