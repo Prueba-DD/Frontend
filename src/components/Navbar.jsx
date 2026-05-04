@@ -7,6 +7,7 @@ const navItems = [
   { to: '/',           label: 'Inicio',          end: true,  guestOnly: true, scrollToTop: true },
   { to: '/dashboard',  label: 'Página Principal', authOnly: true },
   { to: '/reports',    label: 'Reportes',         authOnly: true },
+  { to: '/trending',   label: 'Tendencias',       authOnly: true },
   { to: '/moderacion', label: 'Moderación',       roles: ['moderador', 'admin'] },
   { to: '/admin',      label: 'Administración',   roles: ['admin'] },
   { to: '/#nosotros',  label: 'Acerca de',        hash: true, guestOnly: true },

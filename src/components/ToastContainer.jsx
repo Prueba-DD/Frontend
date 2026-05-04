@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { CheckCircle2, AlertCircle, AlertTriangle, Info, X, LogOut, Leaf } from 'lucide-react';
+import { CheckCircle2, AlertCircle, AlertTriangle, Info, X, LogOut, Leaf, Sparkles } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 
 /* ── Configuración por tipo ───────────────────────────────────────────────── */
@@ -80,7 +80,7 @@ function ToastCompact({ toast }) {
   );
 }
 
-/* ── Toast de autenticación (top-center) ──────────────────────────────────── */
+/* ── Toast de autenticación / IA (top-center) ─────────────────────────────── */
 const AUTH_CONFIG = {
   success: { Icon: Leaf,          iconColor: 'text-green-400',  iconBg: 'bg-green-500/12 border-green-500/30',  barColor: 'bg-green-500'  },
   info:    { Icon: LogOut,        iconColor: 'text-blue-400',   iconBg: 'bg-blue-500/12 border-blue-500/30',    barColor: 'bg-blue-500'   },
@@ -88,9 +88,21 @@ const AUTH_CONFIG = {
   warning: { Icon: AlertTriangle, iconColor: 'text-orange-400', iconBg: 'bg-orange-500/12 border-orange-500/30', barColor: 'bg-orange-500' },
 };
 
+// Variantes que sustituyen icono/colores del bloque izquierdo manteniendo el estilo general.
+const AUTH_VARIANTS = {
+  ai: {
+    success: { Icon: Sparkles, iconColor: 'text-purple-300', iconBg: 'bg-purple-500/15 border-purple-500/40', barColor: 'bg-purple-500' },
+    info:    { Icon: Sparkles, iconColor: 'text-purple-300', iconBg: 'bg-purple-500/15 border-purple-500/40', barColor: 'bg-purple-500' },
+    error:   { Icon: AlertTriangle, iconColor: 'text-red-300', iconBg: 'bg-red-500/12 border-red-500/30',     barColor: 'bg-red-500'    },
+    warning: { Icon: Sparkles, iconColor: 'text-amber-300', iconBg: 'bg-amber-500/12 border-amber-500/30',    barColor: 'bg-amber-500'  },
+  },
+};
+
 function ToastAuth({ toast }) {
   const { removeToast } = useToast();
-  const { Icon, iconColor, iconBg, barColor } = AUTH_CONFIG[toast.type] ?? AUTH_CONFIG.info;
+  const variantCfg = toast.variant ? AUTH_VARIANTS[toast.variant]?.[toast.type] : null;
+  const baseCfg    = AUTH_CONFIG[toast.type] ?? AUTH_CONFIG.info;
+  const { Icon, iconColor, iconBg, barColor } = variantCfg ?? baseCfg;
 
   useEffect(() => {
     const t = setTimeout(() => removeToast(toast.id), toast.duration);

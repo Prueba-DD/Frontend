@@ -14,6 +14,7 @@ import Dashboard from './pages/Dashboard';
 import Reports from './pages/Reports';
 import NewReport from './pages/NewReport';
 import ReportDetail from './pages/ReportDetail';
+import Trending from './pages/Trending';
 import NotFound from './pages/NotFound';
 import FormularioReporte from './components/FormularioReporte';
 import Profile from './pages/Profile';
@@ -45,6 +46,7 @@ export default function App() {
               <Route path="about" element={<Navigate to="/#nosotros" replace />} />
               <Route path="reports"      element={<Reports />} />
               <Route path="reports/:id"  element={<ReportDetail />} />
+              <Route path="trending"     element={<Trending />} />
               <Route path="privacidad"   element={<PoliticaPrivacidad />} />
               <Route path="terminos"     element={<TerminosCondiciones />} />
             </Route>

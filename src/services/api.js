@@ -61,6 +61,10 @@ export const updateReporte  = (id, data)   => api.patch(`/reportes/${id}`, data)
 export const deleteReporte  = (id)         => api.delete(`/reportes/${id}`);
 export const exportReportes = (params)     => api.get('/reportes/export', { params });
 
+// Likes y tendencias
+export const toggleLikeReporte  = (id)         => api.post(`/reportes/${id}/like`);
+export const getTrendingReportes = (params)    => api.get('/reportes/trending', { params });
+
 // ── Perfil / Auth ──
 export const getPerfil            = ()                                               => api.get('/auth/perfil');
 export const updatePerfil         = (data)                                            => api.patch('/auth/perfil', data);

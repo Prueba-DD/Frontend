@@ -11,6 +11,8 @@ import { getReporteById, updateReporte, deleteReporte } from '../services/api';
 import { helpers } from '../constants/categorias';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import LikeButton from '../components/LikeButton';
+import MediaLightbox from '../components/MediaLightbox';
 
 const typeIcons = {
   agua: Droplets, aire: Wind, suelo: Leaf,
@@ -49,26 +51,47 @@ const formatDate = (iso) =>
     hour: '2-digit', minute: '2-digit',
   });
 
-function ImageCard({ ev }) {
+function ImageCard({ ev, onOpen }) {
   const [err, setErr] = useState(false);
   const isImage = ev.mime_type?.startsWith('image/') || ev.tipo_archivo === 'imagen';
   if (!isImage) return null;
+  const handleKey = (e) => {
+    if (!err && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      onOpen?.();
+    }
+  };
   return (
-    <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-800 border border-gray-700">
+    <button
+      type="button"
+      onClick={!err ? onOpen : undefined}
+      onKeyDown={handleKey}
+      disabled={err}
+      aria-label={`Ampliar evidencia ${ev.nombre_original ?? ''}`.trim()}
+      className={[
+        'group relative aspect-video rounded-lg overflow-hidden bg-gray-800 border border-gray-700 text-left',
+        err ? 'cursor-default' : 'cursor-zoom-in hover:border-green-500/50 focus:outline-none focus:ring-2 focus:ring-green-500/60',
+        'transition-colors',
+      ].join(' ')}
+    >
       {err ? (
         <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-600">
           <ImageOff size={28} />
           <span className="text-xs">{ev.nombre_original ?? 'Imagen'}</span>
         </div>
       ) : (
-        <img
-          src={ev.url_archivo}
-          alt={ev.nombre_original ?? 'Evidencia'}
-          className="w-full h-full object-cover"
-          onError={() => setErr(true)}
-        />
+        <>
+          <img
+            src={ev.url_archivo}
+            alt={ev.nombre_original ?? 'Evidencia'}
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            onError={() => setErr(true)}
+            loading="lazy"
+          />
+          <span className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+        </>
       )}
-    </div>
+    </button>
   );
 }
 
@@ -106,6 +129,9 @@ export default function ReportDetail() {
   const [saving,      setSaving]      = useState(false);
   const [confirmDel,  setConfirmDel]  = useState(false);
   const [deleting,    setDeleting]    = useState(false);
+
+  // Visor de evidencias
+  const [lightboxIndex, setLightboxIndex] = useState(null);
 
   useEffect(() => {
     const storedUser = (() => { try { return JSON.parse(localStorage.getItem('ga_user')); } catch { return null; } })();
@@ -160,6 +186,8 @@ export default function ReportDetail() {
     (e) => e.mime_type?.startsWith('video/') || e.tipo_archivo === 'video'
   );
   const hasMedia = imageEvidencias.length > 0 || videoEvidencias.length > 0;
+  // Lightbox: solo navega entre imágenes (los videos tienen su propio reproductor inline).
+  const mediaItems = imageEvidencias;
 
   // Permisos: solo el dueño puede editar/eliminar y solo si está pendiente
   const isOwner    = user && report.id_usuario === user.id_usuario;
@@ -309,6 +337,28 @@ export default function ReportDetail() {
                 {statusLabel[report.estado] ?? report.estado}
               </span>
             </div>
+          </div>
+
+          {/* Métricas de interacción: likes y vistas */}
+          <div className="flex items-center gap-3 flex-wrap -mt-2">
+            <LikeButton
+              id_reporte={report.id_reporte}
+              liked={!!report.liked_by_me}
+              count={Number(report.votos_relevancia) || 0}
+              ownerId={report.id_usuario}
+              size="md"
+              onChange={({ liked, count }) =>
+                setReport((r) => (r ? { ...r, liked_by_me: liked, votos_relevancia: count } : r))
+              }
+            />
+            <span
+              className="inline-flex items-center gap-1.5 text-xs text-gray-400"
+              title="Vistas del reporte"
+            >
+              <Eye size={14} />
+              <span className="tabular-nums">{Number(report.vistas) || 0}</span>
+              <span>{(Number(report.vistas) || 0) === 1 ? 'vista' : 'vistas'}</span>
+            </span>
           </div>
 
           {/* Acciones del propietario (editar / eliminar) */}
@@ -489,9 +539,16 @@ export default function ReportDetail() {
                 {videoEvidencias.map((ev) => (
                   <VideoCard key={ev.id_evidencia} ev={ev} />
                 ))}
-                {imageEvidencias.map((ev) => (
-                  <ImageCard key={ev.id_evidencia} ev={ev} />
-                ))}
+                {imageEvidencias.map((ev) => {
+                  const idx = mediaItems.findIndex((m) => m.id_evidencia === ev.id_evidencia);
+                  return (
+                    <ImageCard
+                      key={ev.id_evidencia}
+                      ev={ev}
+                      onOpen={() => setLightboxIndex(idx)}
+                    />
+                  );
+                })}
               </div>
             </div>
           )}
@@ -554,12 +611,6 @@ export default function ReportDetail() {
                 <p className="text-gray-500 text-xs mb-0.5">Registrado</p>
                 <p className="text-gray-200">{formatDate(report.created_at)}</p>
               </div>
-            </div>
-
-            <div className="flex items-center gap-1.5 text-gray-400">
-              <Eye className="w-4 h-4 text-gray-500" />
-              <span className="text-gray-300">{report.vistas ?? 0}</span>
-              <span className="text-xs text-gray-500">vistas</span>
             </div>
           </div>
 
@@ -634,6 +685,14 @@ export default function ReportDetail() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Lightbox para evidencias de imagen */}
+      <MediaLightbox
+        items={mediaItems}
+        index={lightboxIndex}
+        onClose={() => setLightboxIndex(null)}
+        onChange={setLightboxIndex}
+      />
     </motion.div>
   );
 }

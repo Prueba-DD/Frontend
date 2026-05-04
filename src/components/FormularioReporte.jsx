@@ -134,11 +134,19 @@ export default function FormularioReporte() {
     if (!file) return;
 
     if (!IMG_MIME.has(file.type)) {
-      showToast('Solo se aceptan imágenes (JPG, PNG, WEBP).', 'error');
+      showToast('Formato no compatible', 'error', 3500, {
+        position: 'top-center',
+        variant: 'ai',
+        subtitle: 'Sube una imagen JPG, PNG o WEBP.',
+      });
       return;
     }
     if (file.size > MAX_BYTES) {
-      showToast('La imagen es muy pesada (máximo 10 MB).', 'error');
+      showToast('La imagen es demasiado pesada', 'error', 3500, {
+        position: 'top-center',
+        variant: 'ai',
+        subtitle: 'El tamaño máximo permitido es de 10 MB.',
+      });
       return;
     }
 
@@ -172,7 +180,11 @@ export default function FormularioReporte() {
     } catch (err) {
       const msg = err?.response?.data?.message || 'No se pudo analizar la imagen.';
       setIaAnalisis({ estado: 'error', mensajeError: msg });
-      showToast(msg, 'error');
+      showToast('No se pudo analizar la imagen', 'error', 4000, {
+        position: 'top-center',
+        variant: 'ai',
+        subtitle: msg,
+      });
     }
   };
 
@@ -180,7 +192,11 @@ export default function FormularioReporte() {
     if (iaAnalisis.estado !== 'sugerencia') return;
     selectCategoria(iaAnalisis.categoria);
     setIaAnalisis(prev => ({ ...prev, estado: 'aceptada' }));
-    showToast(`Categoría "${iaAnalisis.nombre}" aplicada por IA.`, 'success');
+    showToast('Categoría aplicada por IA', 'success', 3500, {
+      position: 'top-center',
+      variant: 'ai',
+      subtitle: `${iaAnalisis.nombre} · confianza ${iaAnalisis.confianza}%`,
+    });
   };
 
   const handleIgnorarIA = () => {
