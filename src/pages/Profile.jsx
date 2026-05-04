@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { getPerfil, updatePerfil, changePassword, getMisReportes, deleteReporte } from '../services/api';
+import { getPerfil, updatePerfil, updateAvatar, changePassword, getMisReportes, deleteReporte } from '../services/api';
 import PasswordStrengthIndicator from '../components/PasswordStrengthIndicator';
 import { helpers } from '../constants/categorias';
 
@@ -159,13 +159,13 @@ function ReporteStepper({ estado }) {
   }
   const activeIdx = ESTADO_STEPS.findIndex((s) => s.key === estado);
   return (
-    <div className="flex items-center gap-0">
+    <div className="flex items-center gap-0" title={`Estado: ${ESTADO_STEPS[activeIdx]?.label ?? estado}`}>
       {ESTADO_STEPS.map((step, i) => {
         const isDone    = i < activeIdx;
         const isActive  = i === activeIdx;
         return (
           <div key={step.key} className="flex items-center gap-0 flex-1 last:flex-none">
-            <div className="flex flex-col items-center gap-0.5">
+            <div className="flex flex-col items-center gap-0.5" title={step.label}>
               <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${
                 isDone    ? 'bg-green-500 border-green-500' :
                 isActive  ? 'bg-green-600/25 border-green-500' :
@@ -174,16 +174,23 @@ function ReporteStepper({ estado }) {
                 {isDone && <Check size={8} className="text-white" />}
                 {isActive && <div className="w-1.5 h-1.5 rounded-full bg-green-400" />}
               </div>
-              <span className={`text-[9px] leading-tight whitespace-nowrap ${
+              {/* Label: oculto en xs, visible a partir de sm */}
+              <span className={`hidden sm:block text-[9px] leading-tight whitespace-nowrap ${
                 isActive ? 'text-green-400 font-medium' : isDone ? 'text-gray-400' : 'text-gray-600'
               }`}>{step.label}</span>
             </div>
             {i < ESTADO_STEPS.length - 1 && (
-              <div className={`flex-1 h-px mt-[-8px] mx-0.5 ${isDone ? 'bg-green-500' : 'bg-gray-700'}`} />
+              <div className={`flex-1 h-px mt-[-8px] sm:mt-[-14px] mx-0.5 ${isDone ? 'bg-green-500' : 'bg-gray-700'}`} />
             )}
           </div>
         );
       })}
+      {/* En mobile: muestra solo el label del paso activo */}
+      {activeIdx >= 0 && (
+        <span className="sm:hidden ml-2 text-[10px] text-green-400 font-medium whitespace-nowrap">
+          {ESTADO_STEPS[activeIdx].label}
+        </span>
+      )}
     </div>
   );
 }
@@ -218,19 +225,54 @@ export default function Profile() {
   const [pwSaving, setPwSaving] = useState(false);
   const [showPw,   setShowPw]   = useState({ actual: false, nueva: false, confirmar: false });
 
+  // ── Avatar upload ─────────────────────────────────────────────────────────
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarInputRef = useRef(null);
+
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      showToast('Solo se permiten imágenes JPEG, PNG o WebP.', 'warning');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('La imagen no puede superar 2 MB.', 'warning');
+      return;
+    }
+    const formData = new FormData();
+    formData.append('avatar', file);
+    setAvatarUploading(true);
+    try {
+      const { data } = await updateAvatar(formData);
+      setPerfil(data.data.user);
+      showToast('Foto de perfil actualizada.', 'success');
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Error al subir la foto.', 'error');
+    } finally {
+      setAvatarUploading(false);
+      // Reset para permitir volver a seleccionar el mismo archivo
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
+  };
+
   // ── Mis Reportes ──────────────────────────────────────────────────────────
   const PAGE_SIZE = 10;
   const [misReportes,    setMisReportes]    = useState([]);
   const [misRptTotal,    setMisRptTotal]    = useState(0);
   const [misRptPage,     setMisRptPage]     = useState(0);
   const [misRptLoading,  setMisRptLoading]  = useState(false);
-  const [confirmElim,    setConfirmElim]    = useState(null); // id a eliminar
+  const [confirmElim,    setConfirmElim]    = useState(null);
   const [eliminando,     setEliminando]     = useState(false);
+  const [rptFiltros,     setRptFiltros]     = useState({ estado: '', severidad: '' });
 
-  const fetchMisReportes = useCallback(async (page = 0) => {
+  const fetchMisReportes = useCallback(async (page = 0, filtros = rptFiltros) => {
     setMisRptLoading(true);
     try {
-      const { data } = await getMisReportes({ limit: PAGE_SIZE, offset: page * PAGE_SIZE });
+      const params = { limit: PAGE_SIZE, offset: page * PAGE_SIZE };
+      if (filtros.estado)    params.estado           = filtros.estado;
+      if (filtros.severidad) params.nivel_severidad  = filtros.severidad;
+      const { data } = await getMisReportes(params);
       setMisReportes(data.data.reportes ?? []);
       setMisRptTotal(data.data.total ?? 0);
       setMisRptPage(page);
@@ -239,7 +281,7 @@ export default function Profile() {
     } finally {
       setMisRptLoading(false);
     }
-  }, [showToast]);
+  }, [showToast, rptFiltros]);
 
   useEffect(() => {
     if (section === 'mis-reportes') fetchMisReportes(0);
@@ -375,10 +417,27 @@ export default function Profile() {
                 <span className="text-white text-3xl sm:text-4xl font-bold select-none">{initial}</span>
               )}
             </div>
-            {/* Overlay cámara — preparado para upload futuro */}
-            <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-              <Camera className="w-6 h-6 text-white" />
-            </div>
+            {/* Overlay cámara — abre selector de archivo */}
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={avatarUploading}
+              aria-label="Cambiar foto de perfil"
+              className="absolute inset-0 rounded-full bg-black/55 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity cursor-pointer disabled:cursor-wait"
+            >
+              {avatarUploading
+                ? <Loader2 className="w-6 h-6 text-white animate-spin" />
+                : <><Camera className="w-5 h-5 text-white" /><span className="text-[10px] text-white/80 mt-0.5 leading-none">Cambiar</span></>
+              }
+            </button>
+            {/* Input oculto para selección de archivo */}
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handleAvatarChange}
+            />
           </div>
 
           {/* Info */}
@@ -453,7 +512,6 @@ export default function Profile() {
                   <h2 className="text-base font-semibold text-white flex items-center gap-2">
                     <User size={16} className="text-green-400" /> Información personal
                   </h2>
-                  {!editing ? (
                   <AnimatePresence mode="wait">
                     {saved ? (
                       <motion.div
@@ -477,7 +535,7 @@ export default function Profile() {
                         </svg>
                         Guardado
                       </motion.div>
-                    ) : (
+                    ) : !editing ? (
                       <motion.button
                         key="edit"
                         initial={{ opacity: 0 }}
@@ -488,26 +546,8 @@ export default function Profile() {
                       >
                         <Pencil size={12} /> Editar
                       </motion.button>
-                    )}
+                    ) : null}
                   </AnimatePresence>
-                  ) : (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleSavePerfil}
-                        disabled={saving}
-                        className="flex items-center gap-1.5 text-xs bg-green-500 hover:bg-green-400 text-gray-950 font-medium rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50"
-                      >
-                        {saving ? '...' : <><Check size={12} /> Guardar</>}
-                      </button>
-                      <button
-                        onClick={handleCancelEdit}
-                        disabled={saving}
-                        className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white border border-gray-700 rounded-lg px-3 py-1.5 transition-colors"
-                      >
-                        <X size={12} /> Cancelar
-                      </button>
-                    </div>
-                  )}
                 </div>
 
                 <div>
@@ -542,11 +582,19 @@ export default function Profile() {
                     error={editErrors.telefono}
                   />
                   {/* Campos de solo lectura */}
-                  <div className="flex items-start gap-3 py-3">
+                  <div className="flex items-start gap-3 py-3 border-b border-gray-800/60">
                     <Mail className="w-4 h-4 text-gray-500 mt-1 shrink-0" />
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <p className="text-xs text-gray-500 mb-0.5">Correo electrónico</p>
-                      <p className="text-sm text-gray-400">{perfil?.email ?? '—'} <span className="text-xs text-gray-600 ml-1">(no editable)</span></p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm text-gray-400 truncate">{perfil?.email ?? '—'}</p>
+                        <span
+                          title="El correo electrónico es el identificador único de tu cuenta y no puede modificarse. Si necesitas cambiarlo, contacta al soporte."
+                          className="inline-flex items-center gap-1 text-[11px] text-gray-600 border border-gray-700/60 rounded-full px-2 py-0.5 cursor-help hover:text-gray-400 hover:border-gray-600 transition-colors"
+                        >
+                          <HelpCircle size={10} /> no editable
+                        </span>
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-start gap-3 py-3">
@@ -556,6 +604,26 @@ export default function Profile() {
                       <p className="text-sm text-gray-400">{formatDate(perfil?.created_at)}</p>
                     </div>
                   </div>
+
+                  {/* Botones Guardar/Cancelar al pie del formulario cuando se edita */}
+                  {editing && (
+                    <div className="flex gap-2 pt-4 border-t border-gray-800 mt-1">
+                      <button
+                        onClick={handleSavePerfil}
+                        disabled={saving}
+                        className="flex items-center gap-1.5 text-sm bg-green-500 hover:bg-green-400 text-gray-950 font-medium rounded-lg px-4 py-2 transition-colors disabled:opacity-50"
+                      >
+                        {saving ? <><Loader2 size={13} className="animate-spin" /> Guardando...</> : <><Check size={13} /> Guardar cambios</>}
+                      </button>
+                      <button
+                        onClick={handleCancelEdit}
+                        disabled={saving}
+                        className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white border border-gray-700 rounded-lg px-4 py-2 transition-colors"
+                      >
+                        <X size={13} /> Cancelar
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </>
@@ -563,28 +631,26 @@ export default function Profile() {
 
           {/* ── Pestaña: Seguridad ──────────────────────────────────────── */}
           {section === 'seguridad' && (
+            <>
             <div className="card p-5 sm:p-6">
-              {/* Acordeón cambiar contraseña */}
-              <button
-                onClick={() => setPwOpen((o) => !o)}
-                className="w-full flex items-center justify-between"
-              >
-                <h2 className="text-base font-semibold text-white flex items-center gap-2">
-                  <Lock size={16} className="text-green-400" /> Cambiar contraseña
-                </h2>
-                {pwOpen ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
-              </button>
+              <h2 className="text-base font-semibold text-white flex items-center gap-2 mb-5">
+                <Lock size={16} className="text-green-400" /> Cambiar contraseña
+              </h2>
 
-              <AnimatePresence>
-                {pwOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.25, ease: 'easeOut' }}
-                    style={{ overflow: 'hidden' }}
-                  >
-                    <form onSubmit={handleChangePw} className="mt-5 space-y-4 border-t border-gray-800 pt-5">
+              {perfil?.es_oauth ? (
+                /* Aviso para usuarios OAuth */
+                <div className="flex items-start gap-3 rounded-xl border border-blue-500/25 bg-blue-500/8 p-4">
+                  <ShieldCheck className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-blue-300 mb-0.5">Cuenta vinculada con proveedor externo</p>
+                    <p className="text-xs text-gray-400 leading-relaxed">
+                      Tu cuenta fue creada mediante Google o Facebook. La autenticación se gestiona desde tu proveedor.
+                      No es posible establecer una contraseña directamente en GreenAlert.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleChangePw} className="space-y-4">
                   <PwField
                     label="Contraseña actual *"
                     value={pwForm.actual}
@@ -620,14 +686,64 @@ export default function Profile() {
                   >
                     {pwSaving ? 'Actualizando...' : 'Actualizar contraseña'}
                   </button>
-                    </form>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                </form>
+              )}
             </div>
-          )}
 
-          {/* ── Pestaña: Actividad ──────────────────────────────────────── */}
+            {/* ── Cuentas conectadas ─── */}
+            <div className="card p-5 sm:p-6">
+              <h2 className="text-base font-semibold text-white flex items-center gap-2 mb-4">
+                <ShieldCheck size={16} className="text-green-400" /> Cuentas conectadas
+              </h2>
+              <div className="space-y-3">
+                {/* Google */}
+                <div className="flex items-center justify-between rounded-xl border border-gray-800 bg-gray-900/40 px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-white/5 border border-gray-700 flex items-center justify-center shrink-0">
+                      <svg viewBox="0 0 24 24" className="w-4 h-4" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-200">Google</p>
+                      <p className="text-xs text-gray-500">Inicio de sesión con Google</p>
+                    </div>
+                  </div>
+                  <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full border ${
+                    perfil?.es_oauth
+                      ? 'bg-green-500/10 text-green-400 border-green-500/25'
+                      : 'bg-gray-800 text-gray-500 border-gray-700'
+                  }`}>
+                    {perfil?.es_oauth ? 'Conectado' : 'No conectado'}
+                  </span>
+                </div>
+
+                {/* Correo / Contraseña */}
+                <div className="flex items-center justify-between rounded-xl border border-gray-800 bg-gray-900/40 px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-white/5 border border-gray-700 flex items-center justify-center shrink-0">
+                      <Mail className="w-4 h-4 text-gray-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-200">Correo y contraseña</p>
+                      <p className="text-xs text-gray-500">Autenticación local de GreenAlert</p>
+                    </div>
+                  </div>
+                  <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full border ${
+                    !perfil?.es_oauth
+                      ? 'bg-green-500/10 text-green-400 border-green-500/25'
+                      : 'bg-gray-800 text-gray-500 border-gray-700'
+                  }`}>
+                    {!perfil?.es_oauth ? 'Activo' : 'No configurado'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            </>
+          )}
           {/* ── Pestaña: Mis Reportes ─────────────────────────────── */}
           {section === 'mis-reportes' && (
             <div className="space-y-4">
@@ -635,10 +751,58 @@ export default function Profile() {
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-base font-semibold text-white flex items-center gap-2">
                     <FileText size={16} className="text-green-400" /> Mis Reportes
+                    {misRptTotal > 0 && <span className="text-xs text-gray-500 font-normal">({misRptTotal})</span>}
                   </h2>
                   <Link to="/reports/new" className="flex items-center gap-1.5 text-xs btn-primary py-1.5 px-3">
                     <Plus size={12} /> Nuevo
                   </Link>
+                </div>
+
+                {/* ── Filtros ── */}
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <select
+                    value={rptFiltros.estado}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setRptFiltros((f) => ({ ...f, estado: val }));
+                      fetchMisReportes(0, { ...rptFiltros, estado: val });
+                    }}
+                    className="text-xs bg-gray-800 border border-gray-700 text-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:border-green-500 transition-colors cursor-pointer"
+                  >
+                    <option value="">Todos los estados</option>
+                    <option value="pendiente">Enviado</option>
+                    <option value="en_revision">En revisión</option>
+                    <option value="verificado">Verificado</option>
+                    <option value="en_proceso">En proceso</option>
+                    <option value="resuelto">Resuelto</option>
+                    <option value="rechazado">Rechazado</option>
+                  </select>
+                  <select
+                    value={rptFiltros.severidad}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setRptFiltros((f) => ({ ...f, severidad: val }));
+                      fetchMisReportes(0, { ...rptFiltros, severidad: val });
+                    }}
+                    className="text-xs bg-gray-800 border border-gray-700 text-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:border-green-500 transition-colors cursor-pointer"
+                  >
+                    <option value="">Toda severidad</option>
+                    <option value="bajo">Baja</option>
+                    <option value="medio">Media</option>
+                    <option value="alto">Alta</option>
+                    <option value="critico">Crítico</option>
+                  </select>
+                  {(rptFiltros.estado || rptFiltros.severidad) && (
+                    <button
+                      onClick={() => {
+                        setRptFiltros({ estado: '', severidad: '' });
+                        fetchMisReportes(0, { estado: '', severidad: '' });
+                      }}
+                      className="text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1 px-2 transition-colors"
+                    >
+                      <X size={11} /> Limpiar
+                    </button>
+                  )}
                 </div>
 
                 {misRptLoading ? (
@@ -648,10 +812,14 @@ export default function Profile() {
                 ) : misReportes.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
                     <FileText className="w-10 h-10 text-gray-700" />
-                    <p className="text-gray-500 text-sm">Aún no has enviado reportes.</p>
-                    <Link to="/reports/new" className="btn-primary text-xs py-1.5 px-4">
-                      Crear primer reporte
-                    </Link>
+                    <p className="text-gray-500 text-sm">
+                      {rptFiltros.estado || rptFiltros.severidad ? 'Sin reportes con esos filtros.' : 'Aún no has enviado reportes.'}
+                    </p>
+                    {!rptFiltros.estado && !rptFiltros.severidad && (
+                      <Link to="/reports/new" className="btn-primary text-xs py-1.5 px-4">
+                        Crear primer reporte
+                      </Link>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -805,33 +973,45 @@ export default function Profile() {
               {/* Modal de confirmación de eliminación */}
               <AnimatePresence>
                 {confirmElim && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                    onClick={(e) => { if (e.target === e.currentTarget && !eliminando) setConfirmElim(null); }}
+                  >
                     <motion.div
+                      role="dialog"
+                      aria-modal="true"
+                      aria-labelledby="modal-elim-title"
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.95 }}
                       className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-sm w-full shadow-2xl"
                     >
                       <div className="flex items-start gap-3 mb-5">
-                        <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
-                        <p className="text-sm text-gray-300 leading-relaxed">
-                          ¿Eliminar este reporte? Esta acción no se puede deshacer.
-                        </p>
+                        <div className="w-9 h-9 rounded-full bg-red-500/10 border border-red-500/25 flex items-center justify-center shrink-0">
+                          <AlertTriangle className="w-4 h-4 text-red-400" />
+                        </div>
+                        <div>
+                          <p id="modal-elim-title" className="text-sm font-semibold text-white mb-1">¿Eliminar reporte?</p>
+                          <p className="text-xs text-gray-400 leading-relaxed">
+                            Esta acción es permanente y no se puede deshacer. El reporte y toda su información serán borrados.
+                          </p>
+                        </div>
                       </div>
                       <div className="flex gap-3 justify-end">
                         <button
                           onClick={() => setConfirmElim(null)}
                           disabled={eliminando}
                           className="btn-secondary text-sm"
+                          autoFocus
                         >
                           Cancelar
                         </button>
                         <button
                           onClick={handleEliminar}
                           disabled={eliminando}
-                          className="text-sm font-semibold px-5 py-2.5 rounded-lg bg-red-600 hover:bg-red-500 text-white transition-all active:scale-95 disabled:opacity-50"
+                          className="text-sm font-semibold px-5 py-2.5 rounded-lg bg-red-600 hover:bg-red-500 text-white transition-all active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
                         >
-                          {eliminando ? 'Eliminando...' : 'Eliminar'}
+                          {eliminando ? <><Loader2 size={13} className="animate-spin" /> Eliminando...</> : 'Eliminar'}
                         </button>
                       </div>
                     </motion.div>

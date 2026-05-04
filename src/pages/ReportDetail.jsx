@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Droplets, Trees, Flame, Wind, Trash2, Leaf, Lightbulb,
-  AlertTriangle, Waves, ArrowLeft, MapPin, Calendar, Eye,
+  Droplets, Trees, Flame, Wind, Trash2, Leaf,
+  Waves, ArrowLeft, MapPin, Calendar, Eye,
   User, ShieldCheck, ImageOff,
 } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -10,10 +10,10 @@ import { getReporteById } from '../services/api';
 import { helpers } from '../constants/categorias';
 
 const typeIcons = {
-  agua: Droplets, aire: Wind, suelo: Trees,
-  ruido: Flame, residuos: Trash2, luminica: Lightbulb,
+  agua: Droplets, aire: Wind, suelo: Leaf,
+  residuos: Trash2,
   deforestacion: Trees, incendios_forestales: Flame,
-  deslizamientos: AlertTriangle, avalanchas_fluviotorrenciales: Waves,
+  avalanchas_fluviotorrenciales: Waves,
   otro: Leaf,
 };
 const statusClass = {
@@ -65,6 +65,22 @@ function ImageCard({ ev }) {
           onError={() => setErr(true)}
         />
       )}
+    </div>
+  );
+}
+
+function VideoCard({ ev }) {
+  const isVideo = ev.mime_type?.startsWith('video/') || ev.tipo_archivo === 'video';
+  if (!isVideo) return null;
+  return (
+    <div className="rounded-lg overflow-hidden bg-gray-800 border border-gray-700 col-span-full">
+      <video
+        src={ev.url_archivo}
+        controls
+        preload="metadata"
+        className="w-full max-h-72 object-contain"
+      />
+      <p className="text-xs text-gray-500 px-3 py-1.5 truncate">{ev.nombre_original ?? 'Video'}</p>
     </div>
   );
 }
@@ -127,6 +143,10 @@ export default function ReportDetail() {
   const imageEvidencias = evidencias.filter(
     (e) => e.mime_type?.startsWith('image/') || e.tipo_archivo === 'imagen'
   );
+  const videoEvidencias = evidencias.filter(
+    (e) => e.mime_type?.startsWith('video/') || e.tipo_archivo === 'video'
+  );
+  const hasMedia = imageEvidencias.length > 0 || videoEvidencias.length > 0;
 
   return (
     <motion.div
@@ -177,6 +197,11 @@ export default function ReportDetail() {
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap shrink-0">
+              {report.subcategoria && (
+                <span className="badge border border-gray-600 bg-gray-700/40 text-gray-300">
+                  {report.subcategoria}
+                </span>
+              )}
               <span className={`badge ${severityClass[report.nivel_severidad]}`}>
                 {severityLabel[report.nivel_severidad] ?? report.nivel_severidad}
               </span>
@@ -196,16 +221,19 @@ export default function ReportDetail() {
           )}
 
           {/* Evidence gallery */}
-          {imageEvidencias.length > 0 && (
+          {hasMedia && (
             <div>
               <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide mb-3">
-                Evidencias ({imageEvidencias.length})
+                Evidencias ({evidencias.length})
               </p>
               <div className={`grid gap-3 ${
-                imageEvidencias.length === 1
+                imageEvidencias.length === 1 && videoEvidencias.length === 0
                   ? 'grid-cols-1 max-w-sm'
                   : 'grid-cols-2 sm:grid-cols-3'
               }`}>
+                {videoEvidencias.map((ev) => (
+                  <VideoCard key={ev.id_evidencia} ev={ev} />
+                ))}
                 {imageEvidencias.map((ev) => (
                   <ImageCard key={ev.id_evidencia} ev={ev} />
                 ))}

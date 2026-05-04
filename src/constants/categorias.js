@@ -9,12 +9,9 @@ export const TIPOS_CONTAMINACION = {
   AGUA:                         'agua',
   AIRE:                         'aire',
   SUELO:                        'suelo',
-  RUIDO:                        'ruido',
   RESIDUOS:                     'residuos',
-  LUMINICA:                     'luminica',
   DEFORESTACION:                'deforestacion',
   INCENDIOS_FORESTALES:         'incendios_forestales',
-  DESLIZAMIENTOS:               'deslizamientos',
   AVALANCHAS_FLUVIOTORRENCIALES:'avalanchas_fluviotorrenciales',
   OTRO:                         'otro',
 };
@@ -40,6 +37,8 @@ export const CONFIGURACION_CATEGORIAS = {
     color: '#22C55E',
     severidadPorDefecto: NIVELES_SEVERIDAD.ALTO,
     severidadesPermitidas: ['bajo', 'medio', 'alto'],
+    subcategorias: ['Tala ilegal', 'Quema de bosques', 'Tala para ganadería', 'Pérdida de cobertura forestal'],
+
     camposRequeridos: ['titulo', 'descripcion', 'direccion', 'municipio', 'latitud', 'longitud'],
     sugerencias: [
       'Indicar extensión aproximada del área afectada',
@@ -61,6 +60,8 @@ export const CONFIGURACION_CATEGORIAS = {
     color: '#DC2626',
     severidadPorDefecto: NIVELES_SEVERIDAD.CRITICO,
     severidadesPermitidas: ['alto', 'critico'],
+    subcategorias: ['Incendio activo', 'Rastrojos quemados', 'Área quemada', 'Quema a cielo abierto'],
+
     camposRequeridos: ['titulo', 'descripcion', 'direccion', 'municipio', 'latitud', 'longitud'],
     sugerencias: [
       'Indicar URGENCIA: activo, controlado o extinguido',
@@ -74,27 +75,6 @@ export const CONFIGURACION_CATEGORIAS = {
       'Riesgo para viviendas a 500 metros...',
   },
 
-  [TIPOS_CONTAMINACION.DESLIZAMIENTOS]: {
-    grupo: 'riesgo',
-    nombre: 'Deslizamientos',
-    descripcion: 'Movimientos en masa del terreno',
-    icono: 'alertTriangle',
-    color: '#F97316',
-    severidadPorDefecto: NIVELES_SEVERIDAD.ALTO,
-    severidadesPermitidas: ['medio', 'alto', 'critico'],
-    camposRequeridos: ['titulo', 'descripcion', 'direccion', 'municipio', 'latitud', 'longitud'],
-    sugerencias: [
-      'Indicar si la vía está bloqueada',
-      'Estimar volumen de material desplazado',
-      'Mencionar si continúa o ya está estabilizado',
-      'Incluir riesgo para viviendas o infraestructura',
-    ],
-    ejemploTitulo: 'Deslizamiento en vía principal',
-    ejemploDescripcion:
-      'Deslizamiento que obstruye completamente la vía. Aproximadamente 200 m³ de tierra. ' +
-      'Continúa en movimiento lentamente...',
-  },
-
   [TIPOS_CONTAMINACION.AVALANCHAS_FLUVIOTORRENCIALES]: {
     grupo: 'riesgo',
     nombre: 'Avalanchas Fluviotorrenciales',
@@ -103,6 +83,8 @@ export const CONFIGURACION_CATEGORIAS = {
     color: '#0EA5E9',
     severidadPorDefecto: NIVELES_SEVERIDAD.CRITICO,
     severidadesPermitidas: ['alto', 'critico'],
+    subcategorias: ['Creciente súbita', 'Deslizamiento de tierra', 'Derrumbe de talud', 'Represamiento de río'],
+
     camposRequeridos: ['titulo', 'descripcion', 'direccion', 'municipio', 'latitud', 'longitud'],
     sugerencias: [
       'Indicar nivel de aumento del agua',
@@ -126,6 +108,8 @@ export const CONFIGURACION_CATEGORIAS = {
     color: '#3B82F6',
     severidadPorDefecto: NIVELES_SEVERIDAD.ALTO,
     severidadesPermitidas: ['bajo', 'medio', 'alto', 'critico'],
+    subcategorias: ['Vertimiento industrial', 'Aguas residuales', 'Derrame de químicos', 'Algas nocivas', 'Microplásticos'],
+
     camposRequeridos: ['titulo', 'descripcion', 'direccion'],
     sugerencias: [],
     ejemploTitulo: 'Vertimiento de químicos en el río',
@@ -140,6 +124,8 @@ export const CONFIGURACION_CATEGORIAS = {
     color: '#6B7280',
     severidadPorDefecto: NIVELES_SEVERIDAD.MEDIO,
     severidadesPermitidas: ['bajo', 'medio', 'alto', 'critico'],
+    subcategorias: ['Emisiones industriales', 'Quema a cielo abierto', 'Olores ofensivos', 'Material particulado'],
+
     camposRequeridos: ['titulo', 'descripcion', 'direccion'],
     sugerencias: [],
     ejemploTitulo: 'Emisiones de humo negro en zona industrial',
@@ -154,23 +140,11 @@ export const CONFIGURACION_CATEGORIAS = {
     color: '#84CC16',
     severidadPorDefecto: NIVELES_SEVERIDAD.MEDIO,
     severidadesPermitidas: ['bajo', 'medio', 'alto', 'critico'],
+    subcategorias: ['Derrame de combustible', 'Botadero ilegal', 'Contaminación por minería', 'Erosión severa'],
+
     camposRequeridos: ['titulo', 'descripcion', 'direccion'],
     sugerencias: [],
     ejemploTitulo: 'Derrame de aceite en terreno baldío',
-    ejemploDescripcion: '',
-  },
-
-  [TIPOS_CONTAMINACION.RUIDO]: {
-    grupo: 'contaminacion',
-    nombre: 'Contaminación Sonora',
-    descripcion: 'Exceso de ruido ambiental',
-    icono: 'volume2',
-    color: '#F59E0B',
-    severidadPorDefecto: NIVELES_SEVERIDAD.BAJO,
-    severidadesPermitidas: ['bajo', 'medio', 'alto', 'critico'],
-    camposRequeridos: ['titulo', 'descripcion', 'direccion'],
-    sugerencias: [],
-    ejemploTitulo: 'Ruido excesivo de maquinaria nocturna',
     ejemploDescripcion: '',
   },
 
@@ -182,23 +156,11 @@ export const CONFIGURACION_CATEGORIAS = {
     color: '#EF4444',
     severidadPorDefecto: NIVELES_SEVERIDAD.MEDIO,
     severidadesPermitidas: ['bajo', 'medio', 'alto', 'critico'],
+    subcategorias: ['Basura en vía pública', 'Vertedero ilegal', 'Residuos peligrosos', 'Escombros'],
+
     camposRequeridos: ['titulo', 'descripcion', 'direccion'],
     sugerencias: [],
     ejemploTitulo: 'Basura acumulada en lote sin autorización',
-    ejemploDescripcion: '',
-  },
-
-  [TIPOS_CONTAMINACION.LUMINICA]: {
-    grupo: 'contaminacion',
-    nombre: 'Contaminación Luminosa',
-    descripcion: 'Exceso de iluminación artificial',
-    icono: 'lightbulb',
-    color: '#FBBF24',
-    severidadPorDefecto: NIVELES_SEVERIDAD.BAJO,
-    severidadesPermitidas: ['bajo', 'medio', 'alto', 'critico'],
-    camposRequeridos: ['titulo', 'descripcion', 'direccion'],
-    sugerencias: [],
-    ejemploTitulo: 'Reflectores industriales sin apantallar',
     ejemploDescripcion: '',
   },
 
@@ -210,6 +172,8 @@ export const CONFIGURACION_CATEGORIAS = {
     color: '#8B5CF6',
     severidadPorDefecto: NIVELES_SEVERIDAD.MEDIO,
     severidadesPermitidas: ['bajo', 'medio', 'alto', 'critico'],
+    subcategorias: [],
+
     camposRequeridos: ['titulo', 'descripcion', 'direccion'],
     sugerencias: [],
     ejemploTitulo: '',
@@ -253,7 +217,8 @@ export const helpers = {
   obtenerNombre:   (tipo) => CONFIGURACION_CATEGORIAS[tipo]?.nombre    ?? 'Desconocido',
   obtenerColor:    (tipo) => CONFIGURACION_CATEGORIAS[tipo]?.color     ?? '#808080',
   obtenerIcono:    (tipo) => CONFIGURACION_CATEGORIAS[tipo]?.icono     ?? 'helpCircle',
-  obtenerSugerencias: (tipo) => CONFIGURACION_CATEGORIAS[tipo]?.sugerencias ?? [],
+  obtenerSugerencias:     (tipo) => CONFIGURACION_CATEGORIAS[tipo]?.sugerencias    ?? [],
+  obtenerSubcategorias:   (tipo) => CONFIGURACION_CATEGORIAS[tipo]?.subcategorias  ?? [],
 
   obtenerSeveridadesPermitidas: (tipo) =>
     CONFIGURACION_CATEGORIAS[tipo]?.severidadesPermitidas ?? Object.values(NIVELES_SEVERIDAD),
@@ -261,7 +226,6 @@ export const helpers = {
   obtenerCategoriasRiesgo: () => [
     TIPOS_CONTAMINACION.DEFORESTACION,
     TIPOS_CONTAMINACION.INCENDIOS_FORESTALES,
-    TIPOS_CONTAMINACION.DESLIZAMIENTOS,
     TIPOS_CONTAMINACION.AVALANCHAS_FLUVIOTORRENCIALES,
   ],
 
