@@ -2,10 +2,12 @@ import { useState, useRef, lazy, Suspense } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Paperclip, AlertCircle, Info,
-  Trees, Flame, AlertTriangle, Waves,
-  Droplet, Wind, Leaf, Volume2, Trash2, Lightbulb, HelpCircle,
+  Trees, Flame, Waves,
+  Droplet, Wind, Leaf, Trash2, HelpCircle,
+  X, Video,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import imageCompression from 'browser-image-compression';
 import { createReporte } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import {
@@ -19,17 +21,14 @@ const LocationPicker = lazy(() => import('./LocationPicker'));
 
 // ── Mapeo de nombre de ícono (string) → componente Lucide ─────────────────────
 const ICONO_MAP = {
-  trees:          Trees,
-  flame:          Flame,
-  alertTriangle:  AlertTriangle,
-  waves:          Waves,
-  droplet:        Droplet,
-  wind:           Wind,
-  leaf:           Leaf,
-  volume2:        Volume2,
-  trash2:         Trash2,
-  lightbulb:      Lightbulb,
-  helpCircle:     HelpCircle,
+  trees:      Trees,
+  flame:      Flame,
+  waves:      Waves,
+  droplet:    Droplet,
+  wind:       Wind,
+  leaf:       Leaf,
+  trash2:     Trash2,
+  helpCircle: HelpCircle,
 };
 
 // Categorías que son riesgo ambiental (coordenadas y municipio obligatorios)
@@ -56,13 +55,26 @@ const TODA_CONFIG = Object.entries(CONFIGURACION_CATEGORIAS).map(([value, cfg]) 
 const CATS_RIESGO        = TODA_CONFIG.filter(c => CATEGORIAS_RIESGO.has(c.value));
 const CATS_CONTAMINACION = TODA_CONFIG.filter(c => !CATEGORIAS_RIESGO.has(c.value));
 
+const COMPRESSION_OPTIONS = {
+  maxSizeMB:        1,
+  maxWidthOrHeight: 1920,
+  useWebWorker:     true,
+  fileType:         'image/webp',
+};
+
+const MAX_FILES  = 10;
+const MAX_BYTES  = 10 * 1024 * 1024; // 10 MB
+const IMG_MIME   = new Set(['image/jpeg','image/jpg','image/png','image/webp','image/gif']);
+const VIDEO_MIME = new Set(['video/mp4','video/quicktime']);
+
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function FormularioReporte() {
   const navigate = useNavigate();
   const { showToast } = useToast();
 
-  const [step,       setStep]      = useState(0);
-  const [submitting, setSubmitting]= useState(false);
+  const [step,        setStep]       = useState(0);
+  const [submitting,  setSubmitting]  = useState(false);
+  const [compressing, setCompressing] = useState(false);
 
   const [form, setForm] = useState({
     tipo_contaminacion: '',
@@ -75,7 +87,7 @@ export default function FormularioReporte() {
     departamento:       '',
     latitud:            '',
     longitud:           '',
-    file:               null,
+    files:              [], // [{ id, raw, compressed, preview, isVideo }]
   });
 
   const set = (key, val) => setForm(p => ({ ...p, [key]: val }));
@@ -94,11 +106,10 @@ export default function FormularioReporte() {
 
   // Al elegir categoría → asigna severidad por defecto y limpia otro_especifica si ya no aplica
   const selectCategoria = (value) => {
-    const cfg = helpers.obtenerConfig(value);
     setForm(p => ({
       ...p,
       tipo_contaminacion: value,
-      nivel_severidad:    cfg?.severidadPorDefecto ?? '',
+      nivel_severidad:    '',
       otro_especifica:    value === TIPOS_CONTAMINACION.OTRO ? p.otro_especifica : '',
     }));
   };
@@ -122,6 +133,85 @@ export default function FormularioReporte() {
     return true;
   };
 
+  // ── Gestión de archivos múltiples ────────────────────────────────────────
+  const fileInputRef = useRef(null);
+
+  const addFiles = async (rawList) => {
+    const current = form.files;
+    const errors  = [];
+
+    // Filtrar válidos
+    const valid = [];
+    let newVideos = rawList.filter(f => VIDEO_MIME.has(f.type)).length;
+    const existingVideos = current.filter(f => f.isVideo).length;
+
+    for (const raw of rawList) {
+      if (!IMG_MIME.has(raw.type) && !VIDEO_MIME.has(raw.type)) {
+        errors.push(`«Archivo ${raw.name}»: tipo no permitido.`); continue;
+      }
+      if (raw.size > MAX_BYTES) {
+        errors.push(`«${raw.name}» supera 10 MB.`); continue;
+      }
+      if (current.length + valid.length >= MAX_FILES) {
+        errors.push('Máximo 10 archivos por reporte.'); break;
+      }
+      if (VIDEO_MIME.has(raw.type)) {
+        if (existingVideos + newVideos > 1) {
+          errors.push('Solo se permite 1 video por reporte.'); newVideos--; continue;
+        }
+        // Validar duración
+        try {
+          await new Promise((resolve, reject) => {
+            const el = document.createElement('video');
+            el.preload = 'metadata';
+            el.onloadedmetadata = () => { URL.revokeObjectURL(el.src); el.duration > 30 ? reject() : resolve(); };
+            el.onerror = reject;
+            el.src = URL.createObjectURL(raw);
+          });
+        } catch {
+          errors.push(`«${raw.name}»: el video supera 30 segundos.`); newVideos--; continue;
+        }
+      }
+      valid.push(raw);
+    }
+
+    if (errors.length) { showToast(errors[0], 'error'); }
+    if (!valid.length) return;
+
+    setCompressing(true);
+    const newItems = await Promise.all(valid.map(async (raw) => {
+      const isVideo = VIDEO_MIME.has(raw.type);
+      let compressed = raw;
+      if (!isVideo) {
+        try { compressed = await imageCompression(raw, COMPRESSION_OPTIONS); } catch { compressed = raw; }
+      }
+      return {
+        id:         crypto.randomUUID(),
+        raw,
+        compressed,
+        preview:    isVideo ? null : URL.createObjectURL(compressed),
+        isVideo,
+      };
+    }));
+    setCompressing(false);
+
+    set('files', [...current, ...newItems]);
+  };
+
+  const removeFile = (id) => {
+    setForm(p => {
+      const item = p.files.find(f => f.id === id);
+      if (item?.preview) URL.revokeObjectURL(item.preview);
+      return { ...p, files: p.files.filter(f => f.id !== id) };
+    });
+  };
+
+  const handleFileInput = (e) => {
+    const chosen = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (chosen.length) addFiles(chosen);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!canNext()) return;
@@ -131,32 +221,19 @@ export default function FormularioReporte() {
         ? `[Tipo: ${form.otro_especifica}] ${form.descripcion}`
         : form.descripcion;
 
-      // Usar FormData si hay archivo adjunto, JSON si no
-      let payload;
-      if (form.file) {
-        payload = new FormData();
-        payload.append('tipo_contaminacion', form.tipo_contaminacion);
-        payload.append('nivel_severidad',    form.nivel_severidad);
-        payload.append('titulo',             form.titulo);
-        payload.append('descripcion',        descripcionFinal || '');
-        payload.append('direccion',          form.direccion);
-        if (form.municipio)    payload.append('municipio',    form.municipio);
-        if (form.departamento) payload.append('departamento', form.departamento);
-        if (form.latitud  !== '') payload.append('latitud',  String(parseFloat(form.latitud)));
-        if (form.longitud !== '') payload.append('longitud', String(parseFloat(form.longitud)));
-        payload.append('file', form.file);
-      } else {
-        payload = {
-          tipo_contaminacion: form.tipo_contaminacion,
-          nivel_severidad:    form.nivel_severidad,
-          titulo:             form.titulo,
-          descripcion:        descripcionFinal,
-          direccion:          form.direccion,
-          municipio:          form.municipio    || undefined,
-          departamento:       form.departamento || undefined,
-          latitud:            form.latitud  !== '' ? parseFloat(form.latitud)  : undefined,
-          longitud:           form.longitud !== '' ? parseFloat(form.longitud) : undefined,
-        };
+      // Siempre FormData (backend espera 'files')
+      const payload = new FormData();
+      payload.append('tipo_contaminacion', form.tipo_contaminacion);
+      payload.append('nivel_severidad',    form.nivel_severidad);
+      payload.append('titulo',             form.titulo);
+      payload.append('descripcion',        descripcionFinal || '');
+      payload.append('direccion',          form.direccion);
+      if (form.municipio)    payload.append('municipio',    form.municipio);
+      if (form.departamento) payload.append('departamento', form.departamento);
+      if (form.latitud  !== '') payload.append('latitud',  String(parseFloat(form.latitud)));
+      if (form.longitud !== '') payload.append('longitud', String(parseFloat(form.longitud)));
+      for (const item of form.files) {
+        payload.append('files', item.compressed, item.raw.name);
       }
 
       const res = await createReporte(payload);
@@ -552,6 +629,7 @@ export default function FormularioReporte() {
                   ['Departamento', form.departamento],
                   ['Dirección',    form.direccion],
                   ['Coordenadas',  form.latitud && form.longitud ? `${form.latitud}, ${form.longitud}` : '—'],
+                  ['Evidencias',   form.files.length ? `${form.files.length} archivo(s)` : 'Sin adjuntos'],
                 ].map(([k, v]) => (
                   <div key={k} className="flex justify-between text-gray-400">
                     <span>{k}</span>
@@ -577,30 +655,71 @@ export default function FormularioReporte() {
                 </div>
               )}
 
-              {/* Evidencia */}
+              {/* Evidencia múltiple */}
               <div>
-                <label className="text-sm text-gray-400 mb-2 block">Evidencia adjunta (opcional)</label>
-                <label className="border-2 border-dashed border-gray-700 hover:border-green-600 rounded-xl p-6 text-center cursor-pointer transition-colors group block">
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept="image/*,video/*,.pdf"
-                    onChange={(e) => set('file', e.target.files[0])}
-                  />
-                  <div className="flex flex-col items-center">
-                    <Paperclip className="w-7 h-7 text-gray-500 group-hover:text-green-400 transition-colors mb-2" />
-                    {form.file ? (
-                      <p className="text-sm text-green-400 font-medium">{form.file.name}</p>
-                    ) : (
-                      <>
-                        <p className="text-sm text-gray-400 group-hover:text-gray-300">
-                          Haz clic para seleccionar archivo
-                        </p>
-                        <p className="text-xs text-gray-600 mt-1">JPG, PNG, MP4, PDF — máx. 50MB</p>
-                      </>
-                    )}
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm text-gray-400">
+                    Evidencias <span className="text-gray-600">(opcional — hasta 10 fotos + 1 video)</span>
+                  </label>
+                  {form.files.length > 0 && (
+                    <span className="text-xs text-gray-500">{form.files.length} / {MAX_FILES}</span>
+                  )}
+                </div>
+
+                {/* Grid de previews */}
+                {form.files.length > 0 && (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-3">
+                    {form.files.map((item) => (
+                      <div key={item.id} className="relative group aspect-square rounded-lg overflow-hidden bg-gray-800 border border-gray-700">
+                        {item.isVideo ? (
+                          <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-gray-500 px-1">
+                            <Video size={22} className="text-blue-400" />
+                            <span className="text-xs text-center truncate w-full px-1 text-gray-400">{item.raw.name}</span>
+                          </div>
+                        ) : (
+                          <img src={item.preview} alt={item.raw.name} className="w-full h-full object-cover" />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeFile(item.id)}
+                          className="absolute top-1 right-1 w-5 h-5 rounded-full bg-gray-900/80 text-gray-300 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X size={11} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                </label>
+                )}
+
+                {/* Botón de añadir */}
+                {form.files.length < MAX_FILES && (
+                  <label className="border-2 border-dashed border-gray-700 hover:border-green-600 rounded-xl p-5 text-center cursor-pointer transition-colors group block">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime"
+                      onChange={handleFileInput}
+                    />
+                    <div className="flex flex-col items-center">
+                      {compressing ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-green-500 border-t-transparent rounded-full animate-spin mb-2" />
+                          <p className="text-sm text-green-400">Comprimiendo imágenes...</p>
+                        </>
+                      ) : (
+                        <>
+                          <Paperclip className="w-6 h-6 text-gray-500 group-hover:text-green-400 transition-colors mb-1.5" />
+                          <p className="text-sm text-gray-400 group-hover:text-gray-300">
+                            {form.files.length === 0 ? 'Seleccionar archivos' : 'Añadir más'}
+                          </p>
+                          <p className="text-xs text-gray-600 mt-1">JPG, PNG, WebP, MP4 — máx. 10 MB c/u</p>
+                        </>
+                      )}
+                    </div>
+                  </label>
+                )}
               </div>
             </div>
           )}
@@ -632,10 +751,10 @@ export default function FormularioReporte() {
             <div className="flex flex-col items-stretch sm:items-end gap-2">
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || compressing}
                 className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto px-8"
               >
-                {submitting ? 'Enviando...' : '✓ Enviar Reporte'}
+                {submitting ? 'Enviando...' : compressing ? 'Comprimiendo...' : '✓ Enviar Reporte'}
               </button>
             </div>
           )}
