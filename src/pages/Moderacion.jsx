@@ -67,9 +67,11 @@ function ReporteCard({ reporte, onEstadoChange, updating }) {
   const badge = getBadge(reporte.estado);
   const transiciones = TRANSICIONES[reporte.estado] ?? [];
   const [showEv, setShowEv]   = useState(false);
-  const [evidencias, setEv]   = useState(null); // null=not loaded, []=empty
+  const [evidencias, setEv]   = useState(null);
   const [evLoading, setEvLoad]= useState(false);
   const [lightbox, setLightbox] = useState(null);
+
+  const accentColor = categoriaConfig?.color ?? '#6B7280';
 
   const loadEvidencias = async () => {
     if (evidencias !== null) { setShowEv((v) => !v); return; }
@@ -92,128 +94,136 @@ function ReporteCard({ reporte, onEstadoChange, updating }) {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.97 }}
-        className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex flex-col gap-3"
+        className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden flex"
       >
-        {/* Header */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <span
-                className="badge border"
-                style={{ background: `${categoriaConfig?.color}18`, color: categoriaConfig?.color, borderColor: `${categoriaConfig?.color}40` }}
-              >
-                {categoriaConfig?.nombre ?? reporte.tipo_contaminacion}
-              </span>
-              <span className={`badge border ${SEVERIDAD_CLASS[reporte.nivel_severidad]}`}>
-                {SEVERIDAD_LABEL[reporte.nivel_severidad] ?? reporte.nivel_severidad}
-              </span>
-            </div>
-            <h3 className="text-sm font-semibold text-gray-100 leading-snug line-clamp-2">{reporte.titulo}</h3>
-          </div>
-          <span className={`badge border shrink-0 ${badge.bg} ${badge.color}`}>
-            {badge.label}
-          </span>
-        </div>
+        {/* Barra de acento izquierda */}
+        <div className="w-1 shrink-0" style={{ background: accentColor }} />
 
-        {/* Meta */}
-        <div className="flex items-center gap-4 text-xs text-gray-500">
-          {reporte.municipio && (
-            <span className="flex items-center gap-1">
-              <MapPin size={11} className="shrink-0" /> {reporte.municipio}
-            </span>
-          )}
-          <span className="flex items-center gap-1">
-            <Clock size={11} className="shrink-0" /> {formatDate(reporte.created_at)}
-          </span>
-          {(reporte.autor_nombre || reporte.autor_apellido) && (
-            <span className="flex items-center gap-1 ml-auto">
-              <span>Por: {`${reporte.autor_nombre ?? ''} ${reporte.autor_apellido ?? ''}`.trim()}</span>
-            </span>
-          )}
-        </div>
-
-        {/* Evidencias expandibles */}
-        <div className="border-t border-gray-800 pt-2">
-          <button
-            onClick={loadEvidencias}
-            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-blue-400 transition-colors"
-          >
-            {evLoading
-              ? <Loader2 size={12} className="animate-spin" />
-              : <ImageIcon size={12} />}
-            {showEv ? 'Ocultar evidencias' : 'Ver evidencias'}
-          </button>
-
-          <AnimatePresence>
-            {showEv && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="overflow-hidden"
-              >
-                {evLoading ? (
-                  <div className="flex justify-center py-4">
-                    <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
-                  </div>
-                ) : evidencias?.length === 0 ? (
-                  <p className="text-xs text-gray-600 italic mt-2">Sin evidencias adjuntas.</p>
-                ) : (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {evidencias?.map((ev) => (
-                      <button
-                        key={ev.id_evidencia}
-                        onClick={() => setLightbox(ev)}
-                        className="w-16 h-16 rounded-lg overflow-hidden border border-gray-700 hover:border-blue-500 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <img
-                          src={`/uploads/${ev.url_archivo}`}
-                          alt={ev.descripcion ?? 'Evidencia'}
-                          className="w-full h-full object-cover"
-                          onError={(e) => { e.currentTarget.src = ''; e.currentTarget.style.background='#374151'; }}
-                        />
-                      </button>
-                    ))}
-                  </div>
+        <div className="flex-1 p-4 flex flex-col gap-3 min-w-0">
+          {/* Header */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                <span
+                  className="badge border"
+                  style={{ background: `${accentColor}18`, color: accentColor, borderColor: `${accentColor}40` }}
+                >
+                  {categoriaConfig?.nombre ?? reporte.tipo_contaminacion}
+                </span>
+                <span className={`badge border ${SEVERIDAD_CLASS[reporte.nivel_severidad]}`}>
+                  {SEVERIDAD_LABEL[reporte.nivel_severidad] ?? reporte.nivel_severidad}
+                </span>
+                {reporte.subcategoria && (
+                  <span className="badge border border-gray-700 bg-gray-800/60 text-gray-400">
+                    {reporte.subcategoria}
+                  </span>
                 )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Acciones */}
-        <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-gray-800">
-          <Link
-            to={`/reports/${reporte.id_reporte}`}
-            className="flex items-center gap-1 text-xs text-gray-400 hover:text-green-400 transition-colors"
-          >
-            <Eye size={13} /> Ver detalle
-          </Link>
-
-          {transiciones.length > 0 && (
-            <div className="flex items-center gap-1.5 ml-auto flex-wrap">
-              <span className="text-xs text-gray-600">Cambiar a:</span>
-              {transiciones.map((est) => {
-                const b = getBadge(est);
-                return (
-                  <button
-                    key={est}
-                    disabled={updating === reporte.id_reporte}
-                    onClick={() => onEstadoChange(reporte.id_reporte, est)}
-                    className={`badge border text-[11px] cursor-pointer hover:opacity-80 active:scale-95 transition disabled:opacity-40 ${b.bg} ${b.color}`}
-                  >
-                    {updating === reporte.id_reporte ? (
-                      <Loader2 size={10} className="animate-spin inline" />
-                    ) : (
-                      <>
-                        <ArrowRight size={10} className="inline" /> {b.label}
-                      </>
-                    )}
-                  </button>
-                );
-              })}
+              </div>
+              <h3 className="text-sm font-semibold text-gray-100 leading-snug line-clamp-2">{reporte.titulo}</h3>
             </div>
-          )}
+            <span className={`badge border shrink-0 ${badge.bg} ${badge.color}`}>
+              {badge.label}
+            </span>
+          </div>
+
+          {/* Meta */}
+          <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
+            {reporte.municipio && (
+              <span className="flex items-center gap-1">
+                <MapPin size={11} className="shrink-0" /> {reporte.municipio}
+              </span>
+            )}
+            <span className="flex items-center gap-1">
+              <Clock size={11} className="shrink-0" /> {formatDate(reporte.created_at)}
+            </span>
+            {(reporte.autor_nombre || reporte.autor_apellido) && (
+              <span className="flex items-center gap-1 ml-auto">
+                Por: <span className="text-gray-400 ml-0.5">{`${reporte.autor_nombre ?? ''} ${reporte.autor_apellido ?? ''}`.trim()}</span>
+              </span>
+            )}
+          </div>
+
+          {/* Evidencias expandibles */}
+          <div className="border-t border-gray-800 pt-2">
+            <button
+              onClick={loadEvidencias}
+              className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-400 transition-colors"
+            >
+              {evLoading
+                ? <Loader2 size={12} className="animate-spin" />
+                : <ImageIcon size={12} />}
+              {showEv ? 'Ocultar evidencias' : 'Ver evidencias'}
+            </button>
+
+            <AnimatePresence>
+              {showEv && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden"
+                >
+                  {evLoading ? (
+                    <div className="flex justify-center py-4">
+                      <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
+                    </div>
+                  ) : evidencias?.length === 0 ? (
+                    <p className="text-xs text-gray-600 italic mt-2">Sin evidencias adjuntas.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {evidencias?.map((ev) => (
+                        <button
+                          key={ev.id_evidencia}
+                          onClick={() => setLightbox(ev)}
+                          className="w-16 h-16 rounded-lg overflow-hidden border border-gray-700 hover:border-blue-500 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <img
+                            src={ev.url_archivo}
+                            alt={ev.nombre_original ?? 'Evidencia'}
+                            className="w-full h-full object-cover"
+                            onError={(e) => { e.currentTarget.src = ''; e.currentTarget.style.background='#374151'; }}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Acciones */}
+          <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-gray-800">
+            <Link
+              to={`/reports/${reporte.id_reporte}`}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-gray-700 text-gray-400 hover:border-green-500/40 hover:text-green-400 transition-colors"
+            >
+              <Eye size={12} /> Ver detalle
+            </Link>
+
+            {transiciones.length > 0 && (
+              <div className="flex items-center gap-1.5 ml-auto flex-wrap">
+                <span className="text-xs text-gray-600">Cambiar a:</span>
+                {transiciones.map((est) => {
+                  const b = getBadge(est);
+                  return (
+                    <button
+                      key={est}
+                      disabled={updating === reporte.id_reporte}
+                      onClick={() => onEstadoChange(reporte.id_reporte, est)}
+                      className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border cursor-pointer active:scale-95 transition-all disabled:opacity-40 ${b.bg} ${b.color}`}
+                    >
+                      {updating === reporte.id_reporte ? (
+                        <Loader2 size={10} className="animate-spin inline" />
+                      ) : (
+                        <>→ {b.label}</>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </motion.div>
 
@@ -238,12 +248,12 @@ function ReporteCard({ reporte, onEstadoChange, updating }) {
                 <X size={14} />
               </button>
               <img
-                src={`/uploads/${lightbox.url_archivo}`}
-                alt={lightbox.descripcion ?? 'Evidencia'}
+                src={lightbox.url_archivo}
+                alt={lightbox.nombre_original ?? 'Evidencia'}
                 className="w-full rounded-xl border border-gray-700 shadow-2xl max-h-[80vh] object-contain bg-gray-950"
               />
-              {lightbox.descripcion && (
-                <p className="text-xs text-gray-400 text-center mt-2">{lightbox.descripcion}</p>
+              {lightbox.nombre_original && (
+                <p className="text-xs text-gray-400 text-center mt-2">{lightbox.nombre_original}</p>
               )}
             </motion.div>
           </div>
@@ -330,13 +340,13 @@ export default function Moderacion() {
 
       {/* Encabezado */}
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
-            <ShieldCheck className="w-5 h-5 text-blue-400" />
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/25 flex items-center justify-center shrink-0">
+            <ShieldCheck className="w-6 h-6 text-blue-400" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-100">Panel de Moderación</h1>
-            <p className="text-sm text-gray-500">Revisa y gestiona el estado de los reportes.</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">Panel de Moderación</h1>
+            <p className="text-sm text-gray-400 mt-0.5">Revisa y gestiona el estado de los reportes.</p>
           </div>
         </div>
         <button
@@ -354,10 +364,10 @@ export default function Moderacion() {
           <button
             key={e.value}
             onClick={() => setFiltroEstado(e.value)}
-            className={`badge border text-xs cursor-pointer transition-all ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all border ${
               filtroEstado === e.value
-                ? `${e.bg} ${e.color} ring-1 ring-current`
-                : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-500'
+                ? `${e.bg} ${e.color} border-current/30`
+                : 'bg-gray-800/60 text-gray-400 border-gray-700/80 hover:border-gray-600 hover:text-gray-300'
             }`}
           >
             {e.label}
@@ -409,15 +419,23 @@ export default function Moderacion() {
           <Loader2 className="w-8 h-8 text-green-500 animate-spin" />
         </div>
       ) : reportes.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-3">
-          <CheckCircle2 className="w-10 h-10 text-gray-700" />
-          <p className="text-gray-500 text-sm">
-            No hay reportes con estado <span className="text-gray-300">"{getBadge(filtroEstado).label}"</span>.
-          </p>
+        <div className="flex flex-col items-center justify-center py-24 gap-4">
+          <div className="relative">
+            <div className="w-16 h-16 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center">
+              <CheckCircle2 className="w-8 h-8 text-gray-600" />
+            </div>
+            <div className="absolute inset-0 rounded-full border border-gray-700 animate-ping opacity-30" />
+          </div>
+          <div className="text-center">
+            <p className="text-gray-300 text-sm font-medium">Todo en orden</p>
+            <p className="text-gray-600 text-xs mt-1">
+              No hay reportes con estado <span className="text-gray-400">"{getBadge(filtroEstado).label}"</span>
+            </p>
+          </div>
         </div>
       ) : (
         <div className="space-y-3">
-          <p className="text-xs text-gray-500">{reportes.length} reporte(s) encontrado(s)</p>
+          <p className="text-xs text-gray-500 font-medium">{reportes.length} reporte(s) encontrado(s)</p>
           <AnimatePresence mode="popLayout">
             {reportes.map((r) => (
               <ReporteCard

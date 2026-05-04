@@ -48,13 +48,27 @@ export const createReporte  = (data) => api.post('/reportes', data);
 export const getReportes    = (params)     => api.get('/reportes', { params });
 export const getReporteById = (id, skipView = false) =>
   api.get(`/reportes/${id}`, skipView ? { params: { skip_view: 'true' } } : {});
+// FE-24 (BE-09): clasificación de imagen con IA antes de crear el reporte
+export const analizarImagenIA = (file) => {
+  const formData = new FormData();
+  formData.append('imagen', file);
+  return api.post('/reportes/analizar-imagen', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 30000,
+  });
+};
 export const updateReporte  = (id, data)   => api.patch(`/reportes/${id}`, data);
 export const deleteReporte  = (id)         => api.delete(`/reportes/${id}`);
 export const exportReportes = (params)     => api.get('/reportes/export', { params });
 
+// Likes y tendencias
+export const toggleLikeReporte  = (id)         => api.post(`/reportes/${id}/like`);
+export const getTrendingReportes = (params)    => api.get('/reportes/trending', { params });
+
 // ── Perfil / Auth ──
 export const getPerfil            = ()                                               => api.get('/auth/perfil');
 export const updatePerfil         = (data)                                            => api.patch('/auth/perfil', data);
+export const updateAvatar         = (formData)                                        => api.patch('/auth/avatar', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
 export const changePassword       = (currentPassword, newPassword, confirmPassword)   => api.patch('/auth/cambiar-contrasena', { currentPassword, newPassword, confirmPassword });
 export const updateNotifications  = (preferences)                                     => api.patch('/auth/notificaciones', preferences);
 

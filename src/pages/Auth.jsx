@@ -149,12 +149,12 @@ export default function Auth() {
         });
         navigate(mode === 'login' ? (location.state?.from || '/dashboard') : '/dashboard', { replace: true });
       } catch (err) {
-        showToast(err.response?.data?.message || 'Error al continuar con Google.', 'error');
+        showToast(err.response?.data?.message || 'Error al continuar con Google.', 'error', 4000, { position: 'top-center' });
       } finally {
         setOauthLoading('');
       }
     },
-    onError: () => showToast('Inicio de sesión con Google cancelado.', 'warning'),
+    onError: () => showToast('Inicio de sesión con Google cancelado.', 'warning', 3000, { position: 'top-center' }),
     flow: 'implicit',
   });
 
@@ -175,6 +175,7 @@ export default function Auth() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (loginLoading) return;
     setLoginLoading(true);
     try {
       const userData = await login(loginForm.email, loginForm.password);
@@ -184,7 +185,7 @@ export default function Auth() {
       });
       navigate(from, { replace: true });
     } catch (err) {
-      showToast(err.response?.data?.message || 'Correo o contraseña incorrectos.', 'error');
+      showToast(err.response?.data?.message || 'Correo o contraseña incorrectos.', 'error', 4000, { position: 'top-center' });
     } finally {
       setLoginLoading(false);
     }
@@ -212,7 +213,8 @@ export default function Auth() {
   const handleRegister = async (e) => {
     e.preventDefault();
     const err = validateReg();
-    if (err) { showToast(err, 'warning'); return; }
+    if (err) { showToast(err, 'warning', 4000, { position: 'top-center' }); return; }
+    if (regLoading) return;
     setRegLoading(true);
     try {
       const userData = await register(
@@ -225,7 +227,7 @@ export default function Auth() {
       });
       navigate('/verificar-email', { replace: true });
     } catch (err) {
-      showToast(err.response?.data?.message || 'No se pudo crear la cuenta. Intenta de nuevo.', 'error');
+      showToast(err.response?.data?.message || 'No se pudo crear la cuenta. Intenta de nuevo.', 'error', 4000, { position: 'top-center' });
     } finally {
       setRegLoading(false);
     }

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   Droplets, Trees, Flame, Wind, Trash2, Leaf, Search, Lightbulb,
   AlertTriangle, Waves, ChevronLeft, ChevronRight, CalendarDays,
-  User, Plus, LayoutGrid, List, X, MapPin, Clock,
+  User, Plus, LayoutGrid, List, X, MapPin, Clock, Heart, Eye,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getReportes } from '../services/api';
@@ -545,6 +545,18 @@ export default function Reports() {
                         <span className="truncate">{lugar}</span>
                       </div>
 
+                      {/* Métricas: likes + vistas */}
+                      <div className="flex items-center gap-3 text-[11px] text-gray-500">
+                        <span className={`inline-flex items-center gap-1 ${r.liked_by_me ? 'text-rose-300' : ''}`} title={`${Number(r.votos_relevancia) || 0} ${(Number(r.votos_relevancia) || 0) === 1 ? 'like' : 'likes'}`}>
+                          <Heart size={11} className={r.liked_by_me ? 'fill-current' : ''} />
+                          <span className="tabular-nums">{Number(r.votos_relevancia) || 0}</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1" title={`${Number(r.vistas) || 0} vistas`}>
+                          <Eye size={11} />
+                          <span className="tabular-nums">{Number(r.vistas) || 0}</span>
+                        </span>
+                      </div>
+
                       <div className="border-t border-gray-800/80" />
 
                       {/* Estado + fecha */}
@@ -626,6 +638,18 @@ export default function Reports() {
                     <span className={`badge shrink-0 hidden sm:inline-flex ${severityClass[r.nivel_severidad]}`}>
                       {severityLabel[r.nivel_severidad] ?? r.nivel_severidad}
                     </span>
+
+                    {/* Métricas: likes + vistas */}
+                    <div className="hidden sm:flex flex-col items-end gap-0.5 shrink-0 text-[10px] text-gray-500 min-w-[44px]">
+                      <span className={`inline-flex items-center gap-1 ${r.liked_by_me ? 'text-rose-300' : ''}`}>
+                        <Heart size={10} className={r.liked_by_me ? 'fill-current' : ''} />
+                        <span className="tabular-nums">{Number(r.votos_relevancia) || 0}</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <Eye size={10} />
+                        <span className="tabular-nums">{Number(r.vistas) || 0}</span>
+                      </span>
+                    </div>
 
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <span className={`badge ${statusClass[r.estado]}`}>{statusLabel[r.estado] ?? r.estado}</span>
