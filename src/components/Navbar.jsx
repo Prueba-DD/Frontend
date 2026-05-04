@@ -1,12 +1,13 @@
 ﻿import { useState } from 'react';
-import { NavLink, Link, useNavigate } from 'react-router-dom';
+import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import { UserCircle, Settings as SettingsIcon, ShieldCheck, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const navItems = [
-  { to: '/',           label: 'Inicio',          end: true,  guestOnly: true },
+  { to: '/',           label: 'Inicio',          end: true,  guestOnly: true, scrollToTop: true },
   { to: '/dashboard',  label: 'Página Principal', authOnly: true },
   { to: '/reports',    label: 'Reportes',         authOnly: true },
+  { to: '/trending',   label: 'Tendencias',       authOnly: true },
   { to: '/moderacion', label: 'Moderación',       roles: ['moderador', 'admin'] },
   { to: '/admin',      label: 'Administración',   roles: ['admin'] },
   { to: '/#nosotros',  label: 'Acerca de',        hash: true, guestOnly: true },
@@ -29,6 +30,8 @@ export default function Navbar() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const showNewReport = location.pathname !== '/reports';
 
   const linkClass = ({ isActive }) =>
     `text-sm font-medium transition-colors duration-150 ${
@@ -67,7 +70,13 @@ export default function Navbar() {
                 {item.label}
               </a>
             ) : (
-              <NavLink key={item.to} to={item.to} end={item.end} className={linkClass}>
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={linkClass}
+                onClick={item.scrollToTop ? () => window.scrollTo({ top: 0, behavior: 'smooth' }) : undefined}
+              >
                 {item.label}
               </NavLink>
             )
@@ -78,9 +87,11 @@ export default function Navbar() {
         <div className="hidden md:flex items-center gap-3">
           {user ? (
             <>
-              <Link to="/reports/new" className="btn-primary text-sm">
-                + Nuevo Reporte
-              </Link>
+              {showNewReport && (
+                <Link to="/reports/new" className="btn-primary text-sm">
+                  + Nuevo Reporte
+                </Link>
+              )}
 
               {/* Avatar / menú usuario */}
               <div className="relative">
@@ -202,7 +213,7 @@ export default function Navbar() {
                 to={item.to}
                 end={item.end}
                 className={linkClass}
-                onClick={() => setOpen(false)}
+                onClick={() => { setOpen(false); if (item.scrollToTop) window.scrollTo({ top: 0, behavior: 'smooth' }); }}
               >
                 {item.label}
               </NavLink>
@@ -221,9 +232,11 @@ export default function Navbar() {
                   <p className={`text-xs ${rolColor[user.rol] ?? 'text-gray-400'}`}>{rolLabel[user.rol] ?? user.rol}</p>
                 </div>
               </div>
-              <Link to="/reports/new" className="btn-primary text-sm text-center" onClick={() => setOpen(false)}>
-                + Nuevo Reporte
-              </Link>
+              {showNewReport && (
+                <Link to="/reports/new" className="btn-primary text-sm text-center" onClick={() => setOpen(false)}>
+                  + Nuevo Reporte
+                </Link>
+              )}
               <Link to="/profile" className="text-sm text-gray-300 hover:text-white transition-colors" onClick={() => setOpen(false)}>
                 Mi Perfil
               </Link>
