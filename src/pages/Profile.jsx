@@ -6,7 +6,7 @@ import {
   X, Eye, EyeOff, Check, Camera, ChevronDown, ChevronUp,
   FileText, Loader2, MapPin, Clock, ChevronLeft, ChevronRight,
   AlertTriangle, Plus, Leaf, Flame, Waves, Droplets, Wind,
-  Volume2, Sun, Mountain, Trash2, HelpCircle, ExternalLink,
+  Volume2, Sun, Mountain, Trash2, HelpCircle, ExternalLink, Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -860,6 +860,14 @@ export default function Profile() {
                                   <span className={`badge border text-[11px] font-medium ${sevCfg.bg} ${sevCfg.text} ${sevCfg.border}`}>
                                     {sevCfg.label}
                                   </span>
+                                  {r.ia_procesado && (
+                                    <span
+                                      title="Categoría sugerida por IA"
+                                      className="badge border text-[10px] font-bold tracking-wider bg-purple-500/15 text-purple-300 border-purple-500/40 inline-flex items-center gap-1"
+                                    >
+                                      <Sparkles size={10} /> IA
+                                    </span>
+                                  )}
                                 </div>
 
                                 {/* Título */}

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   Droplets, Trees, Flame, Wind, Trash2, Leaf,
   Waves, ArrowLeft, MapPin, Calendar, Eye,
-  User, ShieldCheck, ImageOff,
+  User, ShieldCheck, ImageOff, Sparkles,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { getReporteById } from '../services/api';
@@ -219,6 +219,60 @@ export default function ReportDetail() {
           ) : (
             <p className="text-gray-500 italic text-sm">Sin descripción proporcionada.</p>
           )}
+
+          {/* FE-25 · Análisis con IA (solo si el reporte fue procesado por IA) */}
+          {report.ia_procesado && Array.isArray(report.ia_etiquetas) && report.ia_etiquetas.length > 0 && (() => {
+            const principal       = report.ia_etiquetas[0];
+            const categoriaFinal  = report.tipo_contaminacion;
+            const coincide        = principal?.label === categoriaFinal;
+            const confianza       = report.ia_confianza ?? principal?.score ?? 0;
+            return (
+              <div className="rounded-xl border border-purple-500/30 bg-purple-500/5 p-4 sm:p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles className="w-4 h-4 text-purple-400" />
+                  <p className="text-xs font-semibold uppercase tracking-wide text-purple-300">
+                    Análisis con IA
+                  </p>
+                  <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-200 border border-purple-500/30">
+                    Confianza {confianza}%
+                  </span>
+                </div>
+
+                <p className="text-sm text-gray-300 mb-3">
+                  La IA sugirió la categoría{' '}
+                  <span className="font-semibold text-white">{principal?.nombre ?? principal?.label}</span>{' '}
+                  {coincide ? (
+                    <span className="text-emerald-300">— coincide con la categoría final del reporte.</span>
+                  ) : (
+                    <span className="text-amber-300">— el usuario eligió una categoría distinta.</span>
+                  )}
+                </p>
+
+                <ul className="space-y-2">
+                  {report.ia_etiquetas.slice(0, 5).map((e, idx) => {
+                    const score = Math.max(0, Math.min(100, Number(e.score) || 0));
+                    const esTop = idx === 0;
+                    return (
+                      <li key={`${e.label}-${idx}`} className="text-xs">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={esTop ? 'text-white font-medium' : 'text-gray-400'}>
+                            {e.nombre ?? e.label}
+                          </span>
+                          <span className="font-mono text-gray-500">{score}%</span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-gray-800 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${esTop ? 'bg-purple-400' : 'bg-purple-500/40'}`}
+                            style={{ width: `${score}%` }}
+                          />
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })()}
 
           {/* Evidence gallery */}
           {hasMedia && (

@@ -336,6 +336,13 @@ export default function FormularioReporte() {
         payload.append('files', item.compressed, item.raw.name);
       }
 
+      // FE-25: persistir resultado de la IA solo si el usuario aceptó la sugerencia.
+      if (iaAnalisis.estado === 'aceptada' && iaAnalisis.categoria) {
+        payload.append('ia_etiquetas', JSON.stringify(iaAnalisis.etiquetas ?? []));
+        payload.append('ia_confianza', String(iaAnalisis.confianza ?? 0));
+        payload.append('ia_procesado', '1');
+      }
+
       const res = await createReporte(payload);
       const idReporte = res.data.data.reporte.id_reporte;
       showToast('¡Reporte enviado correctamente!', 'success', 4000);
@@ -456,9 +463,26 @@ export default function FormularioReporte() {
                     )}
 
                     {iaAnalisis.estado === 'analizando' && (
-                      <div className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-500/15 border border-purple-500/30 text-purple-200 text-sm">
-                        <Loader2 size={16} className="animate-spin" />
-                        Analizando imagen…
+                      <div className="mt-3 rounded-lg bg-purple-500/10 border border-purple-500/30 p-3">
+                        <div className="flex items-center gap-2 text-purple-200 text-sm mb-2">
+                          <Loader2 size={14} className="animate-spin" />
+                          Analizando imagen con IA…
+                        </div>
+                        {/* Skeleton: 3 barras simulando etiquetas en proceso */}
+                        <div className="space-y-1.5" aria-hidden="true">
+                          {[0, 1, 2].map((i) => (
+                            <div
+                              key={i}
+                              className="h-2 rounded-full bg-purple-500/20 overflow-hidden relative"
+                              style={{ width: `${90 - i * 20}%` }}
+                            >
+                              <div
+                                className="absolute inset-0 bg-gradient-to-r from-transparent via-purple-400/40 to-transparent animate-pulse"
+                                style={{ animationDelay: `${i * 150}ms` }}
+                              />
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
 
