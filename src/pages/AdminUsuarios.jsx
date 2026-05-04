@@ -80,7 +80,14 @@ function UsuarioRow({ usuario, onCambiarRol, onToggleEstado, onEliminar, current
       {/* Usuario */}
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
-          <span className="w-8 h-8 rounded-full bg-green-500/15 border border-green-500/30 flex items-center justify-center text-green-400 text-xs font-bold shrink-0">
+          <span
+            className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 border"
+            style={{
+              background: usuario.rol === 'admin' ? 'rgba(234,179,8,0.12)' : usuario.rol === 'moderador' ? 'rgba(59,130,246,0.12)' : 'rgba(34,197,94,0.12)',
+              borderColor: usuario.rol === 'admin' ? 'rgba(234,179,8,0.3)' : usuario.rol === 'moderador' ? 'rgba(59,130,246,0.3)' : 'rgba(34,197,94,0.3)',
+              color: usuario.rol === 'admin' ? '#EAB308' : usuario.rol === 'moderador' ? '#60A5FA' : '#4ADE80',
+            }}
+          >
             {usuario.nombre?.charAt(0).toUpperCase()}
           </span>
           <div className="min-w-0">
@@ -261,12 +268,12 @@ export default function AdminUsuarios() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center">
-            <Users className="w-5 h-5 text-yellow-400" />
+          <div className="w-12 h-12 rounded-2xl bg-yellow-500/10 border border-yellow-500/25 flex items-center justify-center shrink-0">
+            <Users className="w-6 h-6 text-yellow-400" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-100">Gestión de Usuarios</h1>
-            <p className="text-sm text-gray-500">{total} usuario(s) en total</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">Gestión de Usuarios</h1>
+            <p className="text-sm text-gray-400 mt-0.5">{total} usuario(s) en total</p>
           </div>
         </div>
         <button onClick={fetchUsuarios} disabled={loading} className="flex items-center gap-2 btn-secondary text-sm">
@@ -275,7 +282,7 @@ export default function AdminUsuarios() {
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-wrap gap-3 items-center">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex flex-wrap gap-3 items-center">
         {/* Búsqueda */}
         <div className="relative flex-1 min-w-[180px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
@@ -323,12 +330,12 @@ export default function AdminUsuarios() {
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="border-b border-gray-800 text-xs text-gray-500 uppercase tracking-wide">
-                  <th className="px-4 py-3">Usuario</th>
-                  <th className="px-4 py-3">Rol</th>
-                  <th className="px-4 py-3">Estado</th>
-                  <th className="px-4 py-3 hidden lg:table-cell">Registro</th>
-                  <th className="px-4 py-3">Acciones</th>
+                <tr className="border-b border-gray-800 text-xs font-semibold text-gray-500 uppercase tracking-widest bg-gray-800/30">
+                  <th className="px-4 py-3 text-left">Usuario</th>
+                  <th className="px-4 py-3 text-left">Rol</th>
+                  <th className="px-4 py-3 text-left">Estado</th>
+                  <th className="px-4 py-3 text-left hidden lg:table-cell">Registro</th>
+                  <th className="px-4 py-3 text-left">Acciones</th>
                 </tr>
               </thead>
               <tbody>

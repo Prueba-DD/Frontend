@@ -2,12 +2,16 @@ import { useState, useRef, lazy, Suspense } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Paperclip, AlertCircle, Info,
-  Trees, Flame, AlertTriangle, Waves,
-  Droplet, Wind, Leaf, Volume2, Trash2, Lightbulb, HelpCircle,
+  Trees, Flame, Waves,
+  Droplet, Wind, Leaf, Trash2, HelpCircle,
+  X, Video, Locate,
+  Camera, Sparkles, AlertTriangle, Loader2, Check,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { createReporte } from '../services/api';
+import imageCompression from 'browser-image-compression';
+import { createReporte, analizarImagenIA } from '../services/api';
 import { useToast } from '../context/ToastContext';
+import { reverseGeocode } from '../utils/geo';
 import {
   CONFIGURACION_CATEGORIAS,
   TIPOS_CONTAMINACION,
@@ -19,17 +23,14 @@ const LocationPicker = lazy(() => import('./LocationPicker'));
 
 // ── Mapeo de nombre de ícono (string) → componente Lucide ─────────────────────
 const ICONO_MAP = {
-  trees:          Trees,
-  flame:          Flame,
-  alertTriangle:  AlertTriangle,
-  waves:          Waves,
-  droplet:        Droplet,
-  wind:           Wind,
-  leaf:           Leaf,
-  volume2:        Volume2,
-  trash2:         Trash2,
-  lightbulb:      Lightbulb,
-  helpCircle:     HelpCircle,
+  trees:      Trees,
+  flame:      Flame,
+  waves:      Waves,
+  droplet:    Droplet,
+  wind:       Wind,
+  leaf:       Leaf,
+  trash2:     Trash2,
+  helpCircle: HelpCircle,
 };
 
 // Categorías que son riesgo ambiental (coordenadas y municipio obligatorios)
@@ -56,17 +57,31 @@ const TODA_CONFIG = Object.entries(CONFIGURACION_CATEGORIAS).map(([value, cfg]) 
 const CATS_RIESGO        = TODA_CONFIG.filter(c => CATEGORIAS_RIESGO.has(c.value));
 const CATS_CONTAMINACION = TODA_CONFIG.filter(c => !CATEGORIAS_RIESGO.has(c.value));
 
+const COMPRESSION_OPTIONS = {
+  maxSizeMB:        1,
+  maxWidthOrHeight: 1920,
+  useWebWorker:     true,
+  fileType:         'image/webp',
+};
+
+const MAX_FILES  = 10;
+const MAX_BYTES  = 10 * 1024 * 1024; // 10 MB
+const IMG_MIME   = new Set(['image/jpeg','image/jpg','image/png','image/webp','image/gif']);
+const VIDEO_MIME = new Set(['video/mp4','video/quicktime']);
+
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function FormularioReporte() {
   const navigate = useNavigate();
   const { showToast } = useToast();
 
-  const [step,       setStep]      = useState(0);
-  const [submitting, setSubmitting]= useState(false);
+  const [step,        setStep]       = useState(0);
+  const [submitting,  setSubmitting]  = useState(false);
+  const [compressing, setCompressing] = useState(false);
 
   const [form, setForm] = useState({
     tipo_contaminacion: '',
     nivel_severidad:    '',
+    subcategoria:       '',
     otro_especifica:    '',
     titulo:             '',
     descripcion:        '',
@@ -75,8 +90,16 @@ export default function FormularioReporte() {
     departamento:       '',
     latitud:            '',
     longitud:           '',
-    file:               null,
+    files:              [], // [{ id, raw, compressed, preview, isVideo }]
   });
+
+  const [gettingGPS, setGettingGPS] = useState(false);
+
+  // Clasificación de imagen con IA antes de elegir categoría.
+  // iaAnalisis = { estado: 'idle'|'analizando'|'sugerencia'|'aceptada'|'error',
+  //                categoria, nombre, confianza, etiquetas, mensajeError }
+  const [iaAnalisis, setIaAnalisis] = useState({ estado: 'idle' });
+  const iaInputRef = useRef(null);
 
   const set = (key, val) => setForm(p => ({ ...p, [key]: val }));
 
@@ -89,18 +112,105 @@ export default function FormularioReporte() {
   const esRiesgo    = CATEGORIAS_RIESGO.has(form.tipo_contaminacion);
   const severidades = catConfig?.severidadesPermitidas ?? Object.values(NIVELES_SEVERIDAD);
   const sugerencias = catConfig?.sugerencias ?? [];
+  const subcategoriasDisponibles = helpers.obtenerSubcategorias(form.tipo_contaminacion);
   const placeholderTitulo = catConfig?.ejemploTitulo      || 'Ej: Vertimiento de aceite en el río';
   const placeholderDesc   = catConfig?.ejemploDescripcion || 'Describe qué está pasando, desde cuándo, y cualquier detalle relevante...';
 
-  // Al elegir categoría → asigna severidad por defecto y limpia otro_especifica si ya no aplica
+  // Al elegir categoría → limpia severidad, subcategoría y otro_especifica
   const selectCategoria = (value) => {
-    const cfg = helpers.obtenerConfig(value);
     setForm(p => ({
       ...p,
       tipo_contaminacion: value,
-      nivel_severidad:    cfg?.severidadPorDefecto ?? '',
+      nivel_severidad:    '',
+      subcategoria:       '',
       otro_especifica:    value === TIPOS_CONTAMINACION.OTRO ? p.otro_especifica : '',
     }));
+  };
+
+  // ── Análisis IA de la imagen ─────────────────────────────────────────
+  const handleImagenIA = async (e) => {
+    const file = e.target.files?.[0];
+    if (e.target) e.target.value = '';
+    if (!file) return;
+
+    if (!IMG_MIME.has(file.type)) {
+      showToast('Solo se aceptan imágenes (JPG, PNG, WEBP).', 'error');
+      return;
+    }
+    if (file.size > MAX_BYTES) {
+      showToast('La imagen es muy pesada (máximo 10 MB).', 'error');
+      return;
+    }
+
+    setIaAnalisis({ estado: 'analizando' });
+
+    try {
+      // Comprimir agresivo antes de enviar: HF Inference API limita el
+      // payload JSON a ~3 MB y la imagen se serializa en base64 (+33 %).
+      // Con 512 px y 0.4 MB nos quedamos cómodos por debajo del límite.
+      const comprimida = await imageCompression(file, {
+        maxSizeMB: 0.4,
+        maxWidthOrHeight: 512,
+        useWebWorker: true,
+        fileType: 'image/jpeg',
+      }).catch(() => file);
+
+      const { data } = await analizarImagenIA(comprimida);
+      const result = data?.data ?? data;
+
+      if (!result?.categoria) {
+        throw new Error('Respuesta de IA inválida');
+      }
+
+      setIaAnalisis({
+        estado:    'sugerencia',
+        categoria: result.categoria,
+        nombre:    result.nombre,
+        confianza: result.confianza,
+        etiquetas: result.etiquetas || [],
+      });
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'No se pudo analizar la imagen.';
+      setIaAnalisis({ estado: 'error', mensajeError: msg });
+      showToast(msg, 'error');
+    }
+  };
+
+  const handleAceptarIA = () => {
+    if (iaAnalisis.estado !== 'sugerencia') return;
+    selectCategoria(iaAnalisis.categoria);
+    setIaAnalisis(prev => ({ ...prev, estado: 'aceptada' }));
+    showToast(`Categoría "${iaAnalisis.nombre}" aplicada por IA.`, 'success');
+  };
+
+  const handleIgnorarIA = () => {
+    setIaAnalisis({ estado: 'idle' });
+  };
+
+  // GPS automático
+  const handleGPS = () => {
+    if (!navigator.geolocation) {
+      showToast('Tu navegador no soporta geolocalización.', 'error');
+      return;
+    }
+    setGettingGPS(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        set('latitud',  lat);
+        set('longitud', lng);
+        const { municipio, departamento } = await reverseGeocode(lat, lng);
+        if (municipio)    set('municipio',    municipio);
+        if (departamento) set('departamento', departamento);
+        setGettingGPS(false);
+        showToast('Ubicación obtenida correctamente.', 'success', 2500);
+      },
+      () => {
+        showToast('No se pudo obtener la ubicación. Verifica los permisos del navegador.', 'error');
+        setGettingGPS(false);
+      },
+      { timeout: 10000, maximumAge: 60000 }
+    );
   };
 
   // Errores de validación por paso
@@ -122,6 +232,85 @@ export default function FormularioReporte() {
     return true;
   };
 
+  // ── Gestión de archivos múltiples ────────────────────────────────────────
+  const fileInputRef = useRef(null);
+
+  const addFiles = async (rawList) => {
+    const current = form.files;
+    const errors  = [];
+
+    // Filtrar válidos
+    const valid = [];
+    let newVideos = rawList.filter(f => VIDEO_MIME.has(f.type)).length;
+    const existingVideos = current.filter(f => f.isVideo).length;
+
+    for (const raw of rawList) {
+      if (!IMG_MIME.has(raw.type) && !VIDEO_MIME.has(raw.type)) {
+        errors.push(`«Archivo ${raw.name}»: tipo no permitido.`); continue;
+      }
+      if (raw.size > MAX_BYTES) {
+        errors.push(`«${raw.name}» supera 10 MB.`); continue;
+      }
+      if (current.length + valid.length >= MAX_FILES) {
+        errors.push('Máximo 10 archivos por reporte.'); break;
+      }
+      if (VIDEO_MIME.has(raw.type)) {
+        if (existingVideos + newVideos > 1) {
+          errors.push('Solo se permite 1 video por reporte.'); newVideos--; continue;
+        }
+        // Validar duración
+        try {
+          await new Promise((resolve, reject) => {
+            const el = document.createElement('video');
+            el.preload = 'metadata';
+            el.onloadedmetadata = () => { URL.revokeObjectURL(el.src); el.duration > 30 ? reject() : resolve(); };
+            el.onerror = reject;
+            el.src = URL.createObjectURL(raw);
+          });
+        } catch {
+          errors.push(`«${raw.name}»: el video supera 30 segundos.`); newVideos--; continue;
+        }
+      }
+      valid.push(raw);
+    }
+
+    if (errors.length) { showToast(errors[0], 'error'); }
+    if (!valid.length) return;
+
+    setCompressing(true);
+    const newItems = await Promise.all(valid.map(async (raw) => {
+      const isVideo = VIDEO_MIME.has(raw.type);
+      let compressed = raw;
+      if (!isVideo) {
+        try { compressed = await imageCompression(raw, COMPRESSION_OPTIONS); } catch { compressed = raw; }
+      }
+      return {
+        id:         crypto.randomUUID(),
+        raw,
+        compressed,
+        preview:    isVideo ? null : URL.createObjectURL(compressed),
+        isVideo,
+      };
+    }));
+    setCompressing(false);
+
+    set('files', [...current, ...newItems]);
+  };
+
+  const removeFile = (id) => {
+    setForm(p => {
+      const item = p.files.find(f => f.id === id);
+      if (item?.preview) URL.revokeObjectURL(item.preview);
+      return { ...p, files: p.files.filter(f => f.id !== id) };
+    });
+  };
+
+  const handleFileInput = (e) => {
+    const chosen = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (chosen.length) addFiles(chosen);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!canNext()) return;
@@ -131,32 +320,27 @@ export default function FormularioReporte() {
         ? `[Tipo: ${form.otro_especifica}] ${form.descripcion}`
         : form.descripcion;
 
-      // Usar FormData si hay archivo adjunto, JSON si no
-      let payload;
-      if (form.file) {
-        payload = new FormData();
-        payload.append('tipo_contaminacion', form.tipo_contaminacion);
-        payload.append('nivel_severidad',    form.nivel_severidad);
-        payload.append('titulo',             form.titulo);
-        payload.append('descripcion',        descripcionFinal || '');
-        payload.append('direccion',          form.direccion);
-        if (form.municipio)    payload.append('municipio',    form.municipio);
-        if (form.departamento) payload.append('departamento', form.departamento);
-        if (form.latitud  !== '') payload.append('latitud',  String(parseFloat(form.latitud)));
-        if (form.longitud !== '') payload.append('longitud', String(parseFloat(form.longitud)));
-        payload.append('file', form.file);
-      } else {
-        payload = {
-          tipo_contaminacion: form.tipo_contaminacion,
-          nivel_severidad:    form.nivel_severidad,
-          titulo:             form.titulo,
-          descripcion:        descripcionFinal,
-          direccion:          form.direccion,
-          municipio:          form.municipio    || undefined,
-          departamento:       form.departamento || undefined,
-          latitud:            form.latitud  !== '' ? parseFloat(form.latitud)  : undefined,
-          longitud:           form.longitud !== '' ? parseFloat(form.longitud) : undefined,
-        };
+      // Siempre FormData (backend espera 'files')
+      const payload = new FormData();
+      payload.append('tipo_contaminacion', form.tipo_contaminacion);
+      payload.append('nivel_severidad',    form.nivel_severidad);
+      if (form.subcategoria) payload.append('subcategoria', form.subcategoria);
+      payload.append('titulo',             form.titulo);
+      payload.append('descripcion',        descripcionFinal || '');
+      payload.append('direccion',          form.direccion);
+      if (form.municipio)    payload.append('municipio',    form.municipio);
+      if (form.departamento) payload.append('departamento', form.departamento);
+      if (form.latitud  !== '') payload.append('latitud',  String(parseFloat(form.latitud)));
+      if (form.longitud !== '') payload.append('longitud', String(parseFloat(form.longitud)));
+      for (const item of form.files) {
+        payload.append('files', item.compressed, item.raw.name);
+      }
+
+      // FE-25: persistir resultado de la IA solo si el usuario aceptó la sugerencia.
+      if (iaAnalisis.estado === 'aceptada' && iaAnalisis.categoria) {
+        payload.append('ia_etiquetas', JSON.stringify(iaAnalisis.etiquetas ?? []));
+        payload.append('ia_confianza', String(iaAnalisis.confianza ?? 0));
+        payload.append('ia_procesado', '1');
       }
 
       const res = await createReporte(payload);
@@ -237,85 +421,242 @@ export default function FormularioReporte() {
           {/* ── Paso 0: Categoría ──────────────────────────────────────────── */}
           {step === 0 && (
             <div className="flex flex-col gap-6">
+              {/* FE-24 · Análisis IA: dropzone para sugerir categoría desde una foto */}
+              <div className="rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-500/10 to-indigo-500/5 p-4 sm:p-5">
+                <div className="flex items-start gap-3">
+                  <div className="shrink-0 w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                    <Sparkles size={20} className="text-purple-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-semibold text-white flex items-center gap-1.5">
+                      ¿No sabes qué categoría elegir?
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                        IA
+                      </span>
+                    </h3>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Sube una foto del problema y la IA te sugerirá la categoría más probable.
+                    </p>
+
+                    <input
+                      ref={iaInputRef}
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/webp"
+                      onChange={handleImagenIA}
+                      className="hidden"
+                    />
+
+                    {/* Estados del análisis IA */}
+                    {iaAnalisis.estado === 'idle' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => iaInputRef.current?.click()}
+                          className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 text-sm font-medium transition-colors"
+                        >
+                          <Camera size={16} /> Analizar imagen
+                        </button>
+                        <p className="text-[11px] text-gray-500 mt-1.5">
+                          Formatos aceptados: JPG, PNG o WEBP · máximo 10 MB.
+                        </p>
+                      </>
+                    )}
+
+                    {iaAnalisis.estado === 'analizando' && (
+                      <div className="mt-3 rounded-lg bg-purple-500/10 border border-purple-500/30 p-3">
+                        <div className="flex items-center gap-2 text-purple-200 text-sm mb-2">
+                          <Loader2 size={14} className="animate-spin" />
+                          Analizando imagen con IA…
+                        </div>
+                        {/* Skeleton: 3 barras simulando etiquetas en proceso */}
+                        <div className="space-y-1.5" aria-hidden="true">
+                          {[0, 1, 2].map((i) => (
+                            <div
+                              key={i}
+                              className="h-2 rounded-full bg-purple-500/20 overflow-hidden relative"
+                              style={{ width: `${90 - i * 20}%` }}
+                            >
+                              <div
+                                className="absolute inset-0 bg-gradient-to-r from-transparent via-purple-400/40 to-transparent animate-pulse"
+                                style={{ animationDelay: `${i * 150}ms` }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {iaAnalisis.estado === 'sugerencia' && (
+                      <div className="mt-3 rounded-lg bg-gray-900/60 border border-purple-500/30 p-3">
+                        <p className="text-xs text-gray-400 mb-2">Sugerencia de la IA:</p>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div>
+                            <p className="text-base font-semibold text-white">{iaAnalisis.nombre}</p>
+                            <p className="text-xs text-purple-300 mt-0.5">
+                              Confianza: <span className="font-bold">{iaAnalisis.confianza}%</span>
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={handleAceptarIA}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-purple-500 hover:bg-purple-600 text-white text-xs font-medium transition-colors"
+                            >
+                              <Check size={14} /> Aceptar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleIgnorarIA}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs font-medium transition-colors"
+                            >
+                              Ignorar
+                            </button>
+                          </div>
+                        </div>
+                        {iaAnalisis.confianza < 50 && (
+                          <p className="text-[11px] text-amber-400 mt-2 flex items-center gap-1">
+                            <AlertTriangle size={12} />
+                            Confianza baja: revisa la sugerencia antes de aceptarla.
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {iaAnalisis.estado === 'aceptada' && (
+                      <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-green-500/15 border border-green-500/30 text-green-300 text-xs font-medium">
+                        <Check size={14} />
+                        Categoría aplicada por IA ({iaAnalisis.confianza}%)
+                        <button
+                          type="button"
+                          onClick={handleIgnorarIA}
+                          className="ml-1 text-gray-400 hover:text-gray-200"
+                          aria-label="Limpiar sugerencia"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    )}
+
+                    {iaAnalisis.estado === 'error' && (
+                      <div className="mt-3">
+                        <p className="text-xs text-red-400 flex items-center gap-1.5 mb-2">
+                          <AlertTriangle size={12} /> {iaAnalisis.mensajeError}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => iaInputRef.current?.click()}
+                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 text-xs font-medium transition-colors"
+                        >
+                          <Camera size={14} /> Reintentar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <h2 className="font-semibold text-white">¿Qué tipo de problema ambiental es?</h2>
 
-              {/* Sección riesgo ambiental */}
-              <div>
-                <p className="text-xs font-semibold text-orange-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                  <AlertCircle size={13} /> Riesgo Ambiental
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                  {CATS_RIESGO.map(({ value, nombre, descripcion, icono, color }) => {
-                    const Ic       = ICONO_MAP[icono] ?? HelpCircle;
-                    const selected = form.tipo_contaminacion === value;
-                    return (
+              {/* Render unificado de tarjetas (mismo layout para riesgo y contaminación) */}
+              {(() => {
+                const renderCard = ({ value, nombre, descripcion, icono, color }) => {
+                  const Ic       = ICONO_MAP[icono] ?? HelpCircle;
+                  const selected = form.tipo_contaminacion === value;
+                  const fromIA   = selected && iaAnalisis.estado === 'aceptada' && iaAnalisis.categoria === value;
+                  return (
+                    <button
+                      type="button"
+                      key={value}
+                      onClick={() => selectCategoria(value)}
+                      className={`relative h-full text-left px-4 py-3 rounded-lg border transition-all flex flex-col ${
+                        selected ? 'ring-1' : 'border-gray-700 bg-gray-800/50 hover:border-gray-600'
+                      }`}
+                      style={selected ? { borderColor: color, backgroundColor: color + '18', ringColor: color } : {}}
+                    >
+                      {fromIA && (
+                        <span className="absolute top-1.5 right-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider bg-purple-500/30 text-purple-200 border border-purple-500/40">
+                          <Sparkles size={9} /> IA
+                        </span>
+                      )}
+                      <div className="flex items-start gap-2.5 mb-1.5">
+                        <Ic size={18} className="shrink-0 mt-0.5" style={{ color: selected ? color : '#9CA3AF' }} />
+                        <span
+                          className="text-sm font-medium leading-tight pr-6"
+                          style={selected ? { color } : { color: '#D1D5DB' }}
+                        >
+                          {nombre}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 pl-7 leading-snug line-clamp-2">{descripcion}</p>
+                    </button>
+                  );
+                };
+                return (
+                  <>
+                    {/* Sección riesgo ambiental */}
+                    <div>
+                      <p className="text-xs font-semibold text-orange-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                        <AlertCircle size={13} /> Riesgo Ambiental
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-stretch">
+                        {CATS_RIESGO.map(renderCard)}
+                      </div>
+                    </div>
+
+                    {/* Sección contaminación */}
+                    <div>
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                        Contaminación Ambiental
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 items-stretch">
+                        {CATS_CONTAMINACION.map(renderCard)}
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+
+              {/* Campo extra cuando se elige "Otro" */}
+              {form.tipo_contaminacion === TIPOS_CONTAMINACION.OTRO && (
+                <div>
+                  <label className="text-sm text-gray-400 mb-1.5 block">
+                    Especifica el tipo de problema <span className="text-gray-600">(opcional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: Tala ilegal, contaminación por minería..."
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors"
+                    value={form.otro_especifica}
+                    onChange={(e) => set('otro_especifica', e.target.value)}
+                    maxLength={80}
+                  />
+                </div>
+              )}
+
+              {/* Subcategoría (aparece al elegir categoría si hay opciones disponibles) */}
+              {form.tipo_contaminacion && subcategoriasDisponibles.length > 0 && (
+                <div>
+                  <label className="text-sm text-gray-400 mb-2 block">
+                    Subcategoría <span className="text-gray-600">(opcional)</span>
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {subcategoriasDisponibles.map(sub => (
                       <button
                         type="button"
-                        key={value}
-                        onClick={() => selectCategoria(value)}
-                        className={`text-left px-4 py-3 rounded-lg border transition-all ${
-                          selected ? 'ring-1' : 'border-gray-700 bg-gray-800/50 hover:border-gray-600'
+                        key={sub}
+                        onClick={() => set('subcategoria', form.subcategoria === sub ? '' : sub)}
+                        className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${
+                          form.subcategoria === sub
+                            ? 'border-green-500 bg-green-500/15 text-green-400'
+                            : 'border-gray-700 text-gray-500 hover:border-gray-600 hover:text-gray-400'
                         }`}
-                        style={selected ? { borderColor: color, backgroundColor: color + '18', ringColor: color } : {}}
                       >
-                        <div className="flex items-center gap-2.5 mb-1">
-                          <Ic size={18} style={{ color: selected ? color : '#9CA3AF' }} />
-                          <span className="text-sm font-medium" style={selected ? { color } : { color: '#D1D5DB' }}>
-                            {nombre}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-500 pl-7">{descripcion}</p>
+                        {sub}
                       </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Sección contaminación */}
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                  Contaminación ambiental
-                </p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
-                  {CATS_CONTAMINACION.map(({ value, nombre, icono, color }) => {
-                    const Ic       = ICONO_MAP[icono] ?? HelpCircle;
-                    const selected = form.tipo_contaminacion === value;
-                    return (
-                      <button
-                        type="button"
-                        key={value}
-                        onClick={() => selectCategoria(value)}
-                        className={`text-left px-4 py-3 rounded-lg border transition-all ${
-                          selected ? 'ring-1' : 'border-gray-700 bg-gray-800/50 hover:border-gray-600'
-                        }`}
-                        style={selected ? { borderColor: color, backgroundColor: color + '18' } : {}}
-                      >
-                        <div className="flex items-center gap-2 text-sm font-medium">
-                          <Ic size={16} style={{ color: selected ? color : '#9CA3AF' }} />
-                          <span style={selected ? { color } : { color: '#D1D5DB' }}>{nombre}</span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Campo extra cuando se elige "Otro" */}
-                {form.tipo_contaminacion === TIPOS_CONTAMINACION.OTRO && (
-                  <div className="mt-3">
-                    <label className="text-sm text-gray-400 mb-1.5 block">
-                      Especifica el tipo de problema <span className="text-gray-600">(opcional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ej: Tala ilegal, contaminación por minería..."
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors"
-                      value={form.otro_especifica}
-                      onChange={(e) => set('otro_especifica', e.target.value)}
-                      maxLength={80}
-                    />
+                    ))}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* Selector de severidad (aparece al elegir categoría) */}
               {form.tipo_contaminacion && (
@@ -430,7 +771,19 @@ export default function FormularioReporte() {
           {/* ── Paso 2: Ubicación ──────────────────────────────────────────── */}
           {step === 2 && (
             <div className="flex flex-col gap-5">
-              <h2 className="font-semibold text-white">¿Dónde ocurre?</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold text-white">¿Dónde ocurre?</h2>
+                <button
+                  type="button"
+                  onClick={handleGPS}
+                  disabled={gettingGPS}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-green-700 bg-green-900/20 text-green-400 hover:bg-green-900/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {gettingGPS
+                    ? <><div className="w-3.5 h-3.5 border-2 border-green-400 border-t-transparent rounded-full animate-spin" /> Obteniendo...</>
+                    : <><Locate size={13} /> Usar mi ubicación</>}
+                </button>
+              </div>
 
               {esRiesgo && (
                 <div className="rounded-lg border border-orange-900/50 bg-orange-900/10 p-3 flex items-start gap-2">
@@ -512,6 +865,11 @@ export default function FormularioReporte() {
                 <LocationPicker
                   latitud={form.latitud}
                   longitud={form.longitud}
+                  initialCenter={
+                    form.latitud !== '' && form.longitud !== ''
+                      ? [parseFloat(form.latitud), parseFloat(form.longitud)]
+                      : null
+                  }
                   onChange={(lat, lng, municipio, departamento) => {
                     set('latitud', lat);
                     set('longitud', lng);
@@ -546,12 +904,14 @@ export default function FormularioReporte() {
                   ['Categoría',    helpers.obtenerNombre(form.tipo_contaminacion)],
                   ...(form.tipo_contaminacion === TIPOS_CONTAMINACION.OTRO && form.otro_especifica
                     ? [['Especifica', form.otro_especifica]] : []),
+                  ...(form.subcategoria ? [['Subcategoría', form.subcategoria]] : []),
                   ['Severidad',    SEVERIDAD_LABELS[form.nivel_severidad]],
                   ['Título',       form.titulo],
                   ['Municipio',    form.municipio],
                   ['Departamento', form.departamento],
                   ['Dirección',    form.direccion],
                   ['Coordenadas',  form.latitud && form.longitud ? `${form.latitud}, ${form.longitud}` : '—'],
+                  ['Evidencias',   form.files.length ? `${form.files.length} archivo(s)` : 'Sin adjuntos'],
                 ].map(([k, v]) => (
                   <div key={k} className="flex justify-between text-gray-400">
                     <span>{k}</span>
@@ -577,30 +937,71 @@ export default function FormularioReporte() {
                 </div>
               )}
 
-              {/* Evidencia */}
+              {/* Evidencia múltiple */}
               <div>
-                <label className="text-sm text-gray-400 mb-2 block">Evidencia adjunta (opcional)</label>
-                <label className="border-2 border-dashed border-gray-700 hover:border-green-600 rounded-xl p-6 text-center cursor-pointer transition-colors group block">
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept="image/*,video/*,.pdf"
-                    onChange={(e) => set('file', e.target.files[0])}
-                  />
-                  <div className="flex flex-col items-center">
-                    <Paperclip className="w-7 h-7 text-gray-500 group-hover:text-green-400 transition-colors mb-2" />
-                    {form.file ? (
-                      <p className="text-sm text-green-400 font-medium">{form.file.name}</p>
-                    ) : (
-                      <>
-                        <p className="text-sm text-gray-400 group-hover:text-gray-300">
-                          Haz clic para seleccionar archivo
-                        </p>
-                        <p className="text-xs text-gray-600 mt-1">JPG, PNG, MP4, PDF — máx. 50MB</p>
-                      </>
-                    )}
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm text-gray-400">
+                    Evidencias <span className="text-gray-600">(opcional — hasta 10 fotos + 1 video)</span>
+                  </label>
+                  {form.files.length > 0 && (
+                    <span className="text-xs text-gray-500">{form.files.length} / {MAX_FILES}</span>
+                  )}
+                </div>
+
+                {/* Grid de previews */}
+                {form.files.length > 0 && (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-3">
+                    {form.files.map((item) => (
+                      <div key={item.id} className="relative group aspect-square rounded-lg overflow-hidden bg-gray-800 border border-gray-700">
+                        {item.isVideo ? (
+                          <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-gray-500 px-1">
+                            <Video size={22} className="text-blue-400" />
+                            <span className="text-xs text-center truncate w-full px-1 text-gray-400">{item.raw.name}</span>
+                          </div>
+                        ) : (
+                          <img src={item.preview} alt={item.raw.name} className="w-full h-full object-cover" />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeFile(item.id)}
+                          className="absolute top-1 right-1 w-5 h-5 rounded-full bg-gray-900/80 text-gray-300 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X size={11} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                </label>
+                )}
+
+                {/* Botón de añadir */}
+                {form.files.length < MAX_FILES && (
+                  <label className="border-2 border-dashed border-gray-700 hover:border-green-600 rounded-xl p-5 text-center cursor-pointer transition-colors group block">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime"
+                      onChange={handleFileInput}
+                    />
+                    <div className="flex flex-col items-center">
+                      {compressing ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-green-500 border-t-transparent rounded-full animate-spin mb-2" />
+                          <p className="text-sm text-green-400">Comprimiendo imágenes...</p>
+                        </>
+                      ) : (
+                        <>
+                          <Paperclip className="w-6 h-6 text-gray-500 group-hover:text-green-400 transition-colors mb-1.5" />
+                          <p className="text-sm text-gray-400 group-hover:text-gray-300">
+                            {form.files.length === 0 ? 'Seleccionar archivos' : 'Añadir más'}
+                          </p>
+                          <p className="text-xs text-gray-600 mt-1">JPG, PNG, WebP, MP4 — máx. 10 MB c/u</p>
+                        </>
+                      )}
+                    </div>
+                  </label>
+                )}
               </div>
             </div>
           )}
@@ -632,10 +1033,10 @@ export default function FormularioReporte() {
             <div className="flex flex-col items-stretch sm:items-end gap-2">
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || compressing}
                 className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto px-8"
               >
-                {submitting ? 'Enviando...' : '✓ Enviar Reporte'}
+                {submitting ? 'Enviando...' : compressing ? 'Comprimiendo...' : '✓ Enviar Reporte'}
               </button>
             </div>
           )}
