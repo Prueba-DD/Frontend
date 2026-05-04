@@ -81,13 +81,16 @@ function ToastCompact({ toast }) {
 }
 
 /* ── Toast de autenticación (top-center) ──────────────────────────────────── */
+const AUTH_CONFIG = {
+  success: { Icon: Leaf,          iconColor: 'text-green-400',  iconBg: 'bg-green-500/12 border-green-500/30',  barColor: 'bg-green-500'  },
+  info:    { Icon: LogOut,        iconColor: 'text-blue-400',   iconBg: 'bg-blue-500/12 border-blue-500/30',    barColor: 'bg-blue-500'   },
+  error:   { Icon: AlertCircle,   iconColor: 'text-red-400',    iconBg: 'bg-red-500/12 border-red-500/30',      barColor: 'bg-red-500'    },
+  warning: { Icon: AlertTriangle, iconColor: 'text-orange-400', iconBg: 'bg-orange-500/12 border-orange-500/30', barColor: 'bg-orange-500' },
+};
+
 function ToastAuth({ toast }) {
   const { removeToast } = useToast();
-  const isLogout  = toast.type === 'info';
-  const Icon      = isLogout ? LogOut : Leaf;
-  const iconColor = isLogout ? 'text-blue-400' : 'text-green-400';
-  const iconBg    = isLogout ? 'bg-blue-500/12 border-blue-500/30' : 'bg-green-500/12 border-green-500/30';
-  const barColor  = isLogout ? 'bg-blue-500' : 'bg-green-500';
+  const { Icon, iconColor, iconBg, barColor } = AUTH_CONFIG[toast.type] ?? AUTH_CONFIG.info;
 
   useEffect(() => {
     const t = setTimeout(() => removeToast(toast.id), toast.duration);

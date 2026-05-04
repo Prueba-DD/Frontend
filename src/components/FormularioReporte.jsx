@@ -5,10 +5,11 @@ import {
   Trees, Flame, Waves,
   Droplet, Wind, Leaf, Trash2, HelpCircle,
   X, Video, Locate,
+  Camera, Sparkles, AlertTriangle, Loader2, Check,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import imageCompression from 'browser-image-compression';
-import { createReporte } from '../services/api';
+import { createReporte, analizarImagenIA } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { reverseGeocode } from '../utils/geo';
 import {
@@ -94,6 +95,12 @@ export default function FormularioReporte() {
 
   const [gettingGPS, setGettingGPS] = useState(false);
 
+  // Clasificación de imagen con IA antes de elegir categoría.
+  // iaAnalisis = { estado: 'idle'|'analizando'|'sugerencia'|'aceptada'|'error',
+  //                categoria, nombre, confianza, etiquetas, mensajeError }
+  const [iaAnalisis, setIaAnalisis] = useState({ estado: 'idle' });
+  const iaInputRef = useRef(null);
+
   const set = (key, val) => setForm(p => ({ ...p, [key]: val }));
 
   const stepDir = useRef(1);
@@ -118,6 +125,66 @@ export default function FormularioReporte() {
       subcategoria:       '',
       otro_especifica:    value === TIPOS_CONTAMINACION.OTRO ? p.otro_especifica : '',
     }));
+  };
+
+  // ── Análisis IA de la imagen ─────────────────────────────────────────
+  const handleImagenIA = async (e) => {
+    const file = e.target.files?.[0];
+    if (e.target) e.target.value = '';
+    if (!file) return;
+
+    if (!IMG_MIME.has(file.type)) {
+      showToast('Solo se aceptan imágenes (JPG, PNG, WEBP).', 'error');
+      return;
+    }
+    if (file.size > MAX_BYTES) {
+      showToast('La imagen es muy pesada (máximo 10 MB).', 'error');
+      return;
+    }
+
+    setIaAnalisis({ estado: 'analizando' });
+
+    try {
+      // Comprimir agresivo antes de enviar: HF Inference API limita el
+      // payload JSON a ~3 MB y la imagen se serializa en base64 (+33 %).
+      // Con 512 px y 0.4 MB nos quedamos cómodos por debajo del límite.
+      const comprimida = await imageCompression(file, {
+        maxSizeMB: 0.4,
+        maxWidthOrHeight: 512,
+        useWebWorker: true,
+        fileType: 'image/jpeg',
+      }).catch(() => file);
+
+      const { data } = await analizarImagenIA(comprimida);
+      const result = data?.data ?? data;
+
+      if (!result?.categoria) {
+        throw new Error('Respuesta de IA inválida');
+      }
+
+      setIaAnalisis({
+        estado:    'sugerencia',
+        categoria: result.categoria,
+        nombre:    result.nombre,
+        confianza: result.confianza,
+        etiquetas: result.etiquetas || [],
+      });
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'No se pudo analizar la imagen.';
+      setIaAnalisis({ estado: 'error', mensajeError: msg });
+      showToast(msg, 'error');
+    }
+  };
+
+  const handleAceptarIA = () => {
+    if (iaAnalisis.estado !== 'sugerencia') return;
+    selectCategoria(iaAnalisis.categoria);
+    setIaAnalisis(prev => ({ ...prev, estado: 'aceptada' }));
+    showToast(`Categoría "${iaAnalisis.nombre}" aplicada por IA.`, 'success');
+  };
+
+  const handleIgnorarIA = () => {
+    setIaAnalisis({ estado: 'idle' });
   };
 
   // GPS automático
@@ -347,6 +414,123 @@ export default function FormularioReporte() {
           {/* ── Paso 0: Categoría ──────────────────────────────────────────── */}
           {step === 0 && (
             <div className="flex flex-col gap-6">
+              {/* FE-24 · Análisis IA: dropzone para sugerir categoría desde una foto */}
+              <div className="rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-500/10 to-indigo-500/5 p-4 sm:p-5">
+                <div className="flex items-start gap-3">
+                  <div className="shrink-0 w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                    <Sparkles size={20} className="text-purple-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-semibold text-white flex items-center gap-1.5">
+                      ¿No sabes qué categoría elegir?
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                        IA
+                      </span>
+                    </h3>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Sube una foto del problema y la IA te sugerirá la categoría más probable.
+                    </p>
+
+                    <input
+                      ref={iaInputRef}
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/webp"
+                      onChange={handleImagenIA}
+                      className="hidden"
+                    />
+
+                    {/* Estados del análisis IA */}
+                    {iaAnalisis.estado === 'idle' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => iaInputRef.current?.click()}
+                          className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 text-sm font-medium transition-colors"
+                        >
+                          <Camera size={16} /> Analizar imagen
+                        </button>
+                        <p className="text-[11px] text-gray-500 mt-1.5">
+                          Formatos aceptados: JPG, PNG o WEBP · máximo 10 MB.
+                        </p>
+                      </>
+                    )}
+
+                    {iaAnalisis.estado === 'analizando' && (
+                      <div className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-500/15 border border-purple-500/30 text-purple-200 text-sm">
+                        <Loader2 size={16} className="animate-spin" />
+                        Analizando imagen…
+                      </div>
+                    )}
+
+                    {iaAnalisis.estado === 'sugerencia' && (
+                      <div className="mt-3 rounded-lg bg-gray-900/60 border border-purple-500/30 p-3">
+                        <p className="text-xs text-gray-400 mb-2">Sugerencia de la IA:</p>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div>
+                            <p className="text-base font-semibold text-white">{iaAnalisis.nombre}</p>
+                            <p className="text-xs text-purple-300 mt-0.5">
+                              Confianza: <span className="font-bold">{iaAnalisis.confianza}%</span>
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={handleAceptarIA}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-purple-500 hover:bg-purple-600 text-white text-xs font-medium transition-colors"
+                            >
+                              <Check size={14} /> Aceptar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleIgnorarIA}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs font-medium transition-colors"
+                            >
+                              Ignorar
+                            </button>
+                          </div>
+                        </div>
+                        {iaAnalisis.confianza < 50 && (
+                          <p className="text-[11px] text-amber-400 mt-2 flex items-center gap-1">
+                            <AlertTriangle size={12} />
+                            Confianza baja: revisa la sugerencia antes de aceptarla.
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {iaAnalisis.estado === 'aceptada' && (
+                      <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-green-500/15 border border-green-500/30 text-green-300 text-xs font-medium">
+                        <Check size={14} />
+                        Categoría aplicada por IA ({iaAnalisis.confianza}%)
+                        <button
+                          type="button"
+                          onClick={handleIgnorarIA}
+                          className="ml-1 text-gray-400 hover:text-gray-200"
+                          aria-label="Limpiar sugerencia"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    )}
+
+                    {iaAnalisis.estado === 'error' && (
+                      <div className="mt-3">
+                        <p className="text-xs text-red-400 flex items-center gap-1.5 mb-2">
+                          <AlertTriangle size={12} /> {iaAnalisis.mensajeError}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => iaInputRef.current?.click()}
+                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 text-xs font-medium transition-colors"
+                        >
+                          <Camera size={14} /> Reintentar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <h2 className="font-semibold text-white">¿Qué tipo de problema ambiental es?</h2>
 
               {/* Sección riesgo ambiental */}
@@ -358,16 +542,22 @@ export default function FormularioReporte() {
                   {CATS_RIESGO.map(({ value, nombre, descripcion, icono, color }) => {
                     const Ic       = ICONO_MAP[icono] ?? HelpCircle;
                     const selected = form.tipo_contaminacion === value;
+                    const fromIA   = selected && iaAnalisis.estado === 'aceptada' && iaAnalisis.categoria === value;
                     return (
                       <button
                         type="button"
                         key={value}
                         onClick={() => selectCategoria(value)}
-                        className={`text-left px-4 py-3 rounded-lg border transition-all ${
+                        className={`relative text-left px-4 py-3 rounded-lg border transition-all ${
                           selected ? 'ring-1' : 'border-gray-700 bg-gray-800/50 hover:border-gray-600'
                         }`}
                         style={selected ? { borderColor: color, backgroundColor: color + '18', ringColor: color } : {}}
                       >
+                        {fromIA && (
+                          <span className="absolute top-1.5 right-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider bg-purple-500/30 text-purple-200 border border-purple-500/40">
+                            <Sparkles size={9} /> IA
+                          </span>
+                        )}
                         <div className="flex items-center gap-2.5 mb-1">
                           <Ic size={18} style={{ color: selected ? color : '#9CA3AF' }} />
                           <span className="text-sm font-medium" style={selected ? { color } : { color: '#D1D5DB' }}>
@@ -390,16 +580,22 @@ export default function FormularioReporte() {
                   {CATS_CONTAMINACION.map(({ value, nombre, icono, color }) => {
                     const Ic       = ICONO_MAP[icono] ?? HelpCircle;
                     const selected = form.tipo_contaminacion === value;
+                    const fromIA   = selected && iaAnalisis.estado === 'aceptada' && iaAnalisis.categoria === value;
                     return (
                       <button
                         type="button"
                         key={value}
                         onClick={() => selectCategoria(value)}
-                        className={`text-left px-4 py-3 rounded-lg border transition-all ${
+                        className={`relative text-left px-4 py-3 rounded-lg border transition-all ${
                           selected ? 'ring-1' : 'border-gray-700 bg-gray-800/50 hover:border-gray-600'
                         }`}
                         style={selected ? { borderColor: color, backgroundColor: color + '18' } : {}}
                       >
+                        {fromIA && (
+                          <span className="absolute top-1.5 right-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider bg-purple-500/30 text-purple-200 border border-purple-500/40">
+                            <Sparkles size={9} /> IA
+                          </span>
+                        )}
                         <div className="flex items-center gap-2 text-sm font-medium">
                           <Ic size={16} style={{ color: selected ? color : '#9CA3AF' }} />
                           <span style={selected ? { color } : { color: '#D1D5DB' }}>{nombre}</span>
