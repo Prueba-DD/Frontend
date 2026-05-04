@@ -1,7 +1,8 @@
-import { useState, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import { useState, useCallback, useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { reverseGeocode } from '../utils/geo';
 
 const pickerIcon = L.divIcon({
   className: '',
@@ -25,23 +26,19 @@ function ClickHandler({ onPick }) {
   return null;
 }
 
-async function reverseGeocode(lat, lng) {
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=es`,
-      { headers: { 'Accept-Language': 'es' } }
-    );
-    const data = await res.json();
-    const addr = data.address ?? {};
-    const municipio = addr.city || addr.town || addr.village || addr.municipality || addr.county || '';
-    const departamento = addr.state || '';
-    return { municipio, departamento };
-  } catch {
-    return { municipio: '', departamento: '' };
-  }
+function FlyToCenter({ center }) {
+  const map = useMap();
+  useEffect(() => {
+    if (center) map.setView(center, 14, { animate: true });
+  }, [center?.[0], center?.[1], map]); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
 }
 
-export default function LocationPicker({ latitud, longitud, onChange }) {
+async function reverseGeocodeLocal(lat, lng) {
+  return reverseGeocode(lat, lng);
+}
+
+export default function LocationPicker({ latitud, longitud, onChange, initialCenter }) {
   const [position, setPosition] = useState(() => {
     const lat = parseFloat(latitud);
     const lng = parseFloat(longitud);
@@ -53,7 +50,7 @@ export default function LocationPicker({ latitud, longitud, onChange }) {
     async (latlng) => {
       setPosition(latlng);
       setGeocoding(true);
-      const { municipio, departamento } = await reverseGeocode(latlng.lat, latlng.lng);
+      const { municipio, departamento } = await reverseGeocodeLocal(latlng.lat, latlng.lng);
       setGeocoding(false);
       onChange(latlng.lat, latlng.lng, municipio, departamento);
     },
@@ -71,8 +68,8 @@ export default function LocationPicker({ latitud, longitud, onChange }) {
       </p>
       <div className="h-56 sm:h-80 lg:h-[420px]" style={{ borderRadius: '0.75rem', overflow: 'hidden' }}>
         <MapContainer
-          center={[4.5709, -74.2973]}
-          zoom={6}
+          center={initialCenter ?? [4.5709, -74.2973]}
+          zoom={initialCenter ? 14 : 6}
           style={{ height: '100%', width: '100%' }}
         >
           <TileLayer
@@ -80,6 +77,7 @@ export default function LocationPicker({ latitud, longitud, onChange }) {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           />
           <ClickHandler onPick={handlePick} />
+          <FlyToCenter center={initialCenter} />
           {position && <Marker position={position} icon={pickerIcon} />}
         </MapContainer>
       </div>
