@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Droplets, Trees, Flame, Wind, Trash2, Leaf, Lightbulb,
-  AlertTriangle, Waves, ArrowLeft, MapPin, Calendar, Eye,
+  Droplets, Trees, Flame, Wind, Trash2, Leaf,
+  Waves, ArrowLeft, MapPin, Calendar, Eye,
   User, ShieldCheck, ImageOff,
 } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -10,10 +10,10 @@ import { getReporteById } from '../services/api';
 import { helpers } from '../constants/categorias';
 
 const typeIcons = {
-  agua: Droplets, aire: Wind, suelo: Trees,
-  ruido: Flame, residuos: Trash2, luminica: Lightbulb,
+  agua: Droplets, aire: Wind, suelo: Leaf,
+  residuos: Trash2,
   deforestacion: Trees, incendios_forestales: Flame,
-  deslizamientos: AlertTriangle, avalanchas_fluviotorrenciales: Waves,
+  avalanchas_fluviotorrenciales: Waves,
   otro: Leaf,
 };
 const statusClass = {
@@ -197,6 +197,11 @@ export default function ReportDetail() {
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap shrink-0">
+              {report.subcategoria && (
+                <span className="badge border border-gray-600 bg-gray-700/40 text-gray-300">
+                  {report.subcategoria}
+                </span>
+              )}
               <span className={`badge ${severityClass[report.nivel_severidad]}`}>
                 {severityLabel[report.nivel_severidad] ?? report.nivel_severidad}
               </span>

@@ -4,12 +4,13 @@ import {
   Paperclip, AlertCircle, Info,
   Trees, Flame, Waves,
   Droplet, Wind, Leaf, Trash2, HelpCircle,
-  X, Video,
+  X, Video, Locate,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import imageCompression from 'browser-image-compression';
 import { createReporte } from '../services/api';
 import { useToast } from '../context/ToastContext';
+import { reverseGeocode } from '../utils/geo';
 import {
   CONFIGURACION_CATEGORIAS,
   TIPOS_CONTAMINACION,
@@ -79,6 +80,7 @@ export default function FormularioReporte() {
   const [form, setForm] = useState({
     tipo_contaminacion: '',
     nivel_severidad:    '',
+    subcategoria:       '',
     otro_especifica:    '',
     titulo:             '',
     descripcion:        '',
@@ -89,6 +91,8 @@ export default function FormularioReporte() {
     longitud:           '',
     files:              [], // [{ id, raw, compressed, preview, isVideo }]
   });
+
+  const [gettingGPS, setGettingGPS] = useState(false);
 
   const set = (key, val) => setForm(p => ({ ...p, [key]: val }));
 
@@ -101,17 +105,45 @@ export default function FormularioReporte() {
   const esRiesgo    = CATEGORIAS_RIESGO.has(form.tipo_contaminacion);
   const severidades = catConfig?.severidadesPermitidas ?? Object.values(NIVELES_SEVERIDAD);
   const sugerencias = catConfig?.sugerencias ?? [];
+  const subcategoriasDisponibles = helpers.obtenerSubcategorias(form.tipo_contaminacion);
   const placeholderTitulo = catConfig?.ejemploTitulo      || 'Ej: Vertimiento de aceite en el río';
   const placeholderDesc   = catConfig?.ejemploDescripcion || 'Describe qué está pasando, desde cuándo, y cualquier detalle relevante...';
 
-  // Al elegir categoría → asigna severidad por defecto y limpia otro_especifica si ya no aplica
+  // Al elegir categoría → limpia severidad, subcategoría y otro_especifica
   const selectCategoria = (value) => {
     setForm(p => ({
       ...p,
       tipo_contaminacion: value,
       nivel_severidad:    '',
+      subcategoria:       '',
       otro_especifica:    value === TIPOS_CONTAMINACION.OTRO ? p.otro_especifica : '',
     }));
+  };
+
+  // GPS automático
+  const handleGPS = () => {
+    if (!navigator.geolocation) {
+      showToast('Tu navegador no soporta geolocalización.', 'error');
+      return;
+    }
+    setGettingGPS(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        set('latitud',  lat);
+        set('longitud', lng);
+        const { municipio, departamento } = await reverseGeocode(lat, lng);
+        if (municipio)    set('municipio',    municipio);
+        if (departamento) set('departamento', departamento);
+        setGettingGPS(false);
+        showToast('Ubicación obtenida correctamente.', 'success', 2500);
+      },
+      () => {
+        showToast('No se pudo obtener la ubicación. Verifica los permisos del navegador.', 'error');
+        setGettingGPS(false);
+      },
+      { timeout: 10000, maximumAge: 60000 }
+    );
   };
 
   // Errores de validación por paso
@@ -225,6 +257,7 @@ export default function FormularioReporte() {
       const payload = new FormData();
       payload.append('tipo_contaminacion', form.tipo_contaminacion);
       payload.append('nivel_severidad',    form.nivel_severidad);
+      if (form.subcategoria) payload.append('subcategoria', form.subcategoria);
       payload.append('titulo',             form.titulo);
       payload.append('descripcion',        descripcionFinal || '');
       payload.append('direccion',          form.direccion);
@@ -394,6 +427,31 @@ export default function FormularioReporte() {
                 )}
               </div>
 
+              {/* Subcategoría (aparece al elegir categoría si hay opciones disponibles) */}
+              {form.tipo_contaminacion && subcategoriasDisponibles.length > 0 && (
+                <div>
+                  <label className="text-sm text-gray-400 mb-2 block">
+                    Subcategoría <span className="text-gray-600">(opcional)</span>
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {subcategoriasDisponibles.map(sub => (
+                      <button
+                        type="button"
+                        key={sub}
+                        onClick={() => set('subcategoria', form.subcategoria === sub ? '' : sub)}
+                        className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${
+                          form.subcategoria === sub
+                            ? 'border-green-500 bg-green-500/15 text-green-400'
+                            : 'border-gray-700 text-gray-500 hover:border-gray-600 hover:text-gray-400'
+                        }`}
+                      >
+                        {sub}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Selector de severidad (aparece al elegir categoría) */}
               {form.tipo_contaminacion && (
                 <div>
@@ -507,7 +565,19 @@ export default function FormularioReporte() {
           {/* ── Paso 2: Ubicación ──────────────────────────────────────────── */}
           {step === 2 && (
             <div className="flex flex-col gap-5">
-              <h2 className="font-semibold text-white">¿Dónde ocurre?</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold text-white">¿Dónde ocurre?</h2>
+                <button
+                  type="button"
+                  onClick={handleGPS}
+                  disabled={gettingGPS}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-green-700 bg-green-900/20 text-green-400 hover:bg-green-900/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {gettingGPS
+                    ? <><div className="w-3.5 h-3.5 border-2 border-green-400 border-t-transparent rounded-full animate-spin" /> Obteniendo...</>
+                    : <><Locate size={13} /> Usar mi ubicación</>}
+                </button>
+              </div>
 
               {esRiesgo && (
                 <div className="rounded-lg border border-orange-900/50 bg-orange-900/10 p-3 flex items-start gap-2">
@@ -589,6 +659,11 @@ export default function FormularioReporte() {
                 <LocationPicker
                   latitud={form.latitud}
                   longitud={form.longitud}
+                  initialCenter={
+                    form.latitud !== '' && form.longitud !== ''
+                      ? [parseFloat(form.latitud), parseFloat(form.longitud)]
+                      : null
+                  }
                   onChange={(lat, lng, municipio, departamento) => {
                     set('latitud', lat);
                     set('longitud', lng);
@@ -623,6 +698,7 @@ export default function FormularioReporte() {
                   ['Categoría',    helpers.obtenerNombre(form.tipo_contaminacion)],
                   ...(form.tipo_contaminacion === TIPOS_CONTAMINACION.OTRO && form.otro_especifica
                     ? [['Especifica', form.otro_especifica]] : []),
+                  ...(form.subcategoria ? [['Subcategoría', form.subcategoria]] : []),
                   ['Severidad',    SEVERIDAD_LABELS[form.nivel_severidad]],
                   ['Título',       form.titulo],
                   ['Municipio',    form.municipio],
