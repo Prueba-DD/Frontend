@@ -118,13 +118,19 @@ export default function FormularioReporte() {
 
   // Al elegir categoría → limpia severidad, subcategoría y otro_especifica
   const selectCategoria = (value) => {
-    setForm(p => ({
-      ...p,
-      tipo_contaminacion: value,
-      nivel_severidad:    '',
-      subcategoria:       '',
-      otro_especifica:    value === TIPOS_CONTAMINACION.OTRO ? p.otro_especifica : '',
-    }));
+    setForm(p => {
+      // Click en la categoría ya seleccionada → deselecciona
+      if (p.tipo_contaminacion === value) {
+        return { ...p, tipo_contaminacion: '', nivel_severidad: '', subcategoria: '', otro_especifica: '' };
+      }
+      return {
+        ...p,
+        tipo_contaminacion: value,
+        nivel_severidad:    '',
+        subcategoria:       '',
+        otro_especifica:    value === TIPOS_CONTAMINACION.OTRO ? p.otro_especifica : '',
+      };
+    });
   };
 
   // ── Análisis IA de la imagen ─────────────────────────────────────────
@@ -175,6 +181,10 @@ export default function FormularioReporte() {
         categoria: result.categoria,
         nombre:    result.nombre,
         confianza: result.confianza,
+        subcategoria:        result.subcategoria || null,
+        confianzaSubcategoria: result.confianza_subcategoria ?? 0,
+        severidad:           result.severidad || null,
+        confianzaSeveridad:  result.confianza_severidad ?? 0,
         etiquetas: result.etiquetas || [],
       });
     } catch (err) {
@@ -190,12 +200,32 @@ export default function FormularioReporte() {
 
   const handleAceptarIA = () => {
     if (iaAnalisis.estado !== 'sugerencia') return;
-    selectCategoria(iaAnalisis.categoria);
+    const { categoria, subcategoria, severidad, nombre, confianza } = iaAnalisis;
+
+    // Aplica categoría y, si la subcategoría sugerida pertenece al catálogo
+    // de esa categoría, también la aplica automáticamente.
+    setForm(p => {
+      const subsValidas = helpers.obtenerSubcategorias(categoria);
+      const subAplicar  = subcategoria && subsValidas.includes(subcategoria) ? subcategoria : '';
+      return {
+        ...p,
+        tipo_contaminacion: categoria,
+        nivel_severidad:    '',                // severidad NO se auto-aplica
+        subcategoria:       subAplicar,
+        otro_especifica:    categoria === TIPOS_CONTAMINACION.OTRO ? p.otro_especifica : '',
+      };
+    });
+
     setIaAnalisis(prev => ({ ...prev, estado: 'aceptada' }));
-    showToast('Categoría aplicada por IA', 'success', 3500, {
+
+    const partes = [`${nombre} · confianza ${confianza}%`];
+    if (subcategoria) partes.push(`subcategoría: ${subcategoria}`);
+    if (severidad)    partes.push(`severidad sugerida: ${severidad}`);
+
+    showToast('Sugerencias de IA aplicadas', 'success', 4000, {
       position: 'top-center',
       variant: 'ai',
-      subtitle: `${iaAnalisis.nombre} · confianza ${iaAnalisis.confianza}%`,
+      subtitle: partes.join(' · '),
     });
   };
 
@@ -656,20 +686,31 @@ export default function FormularioReporte() {
                     Subcategoría <span className="text-gray-600">(opcional)</span>
                   </label>
                   <div className="flex flex-wrap gap-2">
-                    {subcategoriasDisponibles.map(sub => (
-                      <button
-                        type="button"
-                        key={sub}
-                        onClick={() => set('subcategoria', form.subcategoria === sub ? '' : sub)}
-                        className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${
-                          form.subcategoria === sub
-                            ? 'border-green-500 bg-green-500/15 text-green-400'
-                            : 'border-gray-700 text-gray-500 hover:border-gray-600 hover:text-gray-400'
-                        }`}
-                      >
-                        {sub}
-                      </button>
-                    ))}
+                    {subcategoriasDisponibles.map(sub => {
+                      const isSelected = form.subcategoria === sub;
+                      const fromIA = isSelected
+                        && iaAnalisis.estado === 'aceptada'
+                        && iaAnalisis.subcategoria === sub;
+                      return (
+                        <button
+                          type="button"
+                          key={sub}
+                          onClick={() => set('subcategoria', form.subcategoria === sub ? '' : sub)}
+                          className={`relative px-3 py-1.5 rounded-full text-xs border transition-colors ${
+                            isSelected
+                              ? 'border-green-500 bg-green-500/15 text-green-400'
+                              : 'border-gray-700 text-gray-500 hover:border-gray-600 hover:text-gray-400'
+                          }`}
+                        >
+                          {fromIA && (
+                            <span className="absolute -top-1.5 -right-1.5 inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[8px] font-bold tracking-wider bg-purple-500/30 text-purple-200 border border-purple-500/40">
+                              <Sparkles size={8} /> IA
+                            </span>
+                          )}
+                          {sub}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -684,22 +725,51 @@ export default function FormularioReporte() {
                         — permitido para {catConfig.nombre}: {severidades.map(s => SEVERIDAD_LABELS[s]).join(', ')}
                       </span>
                     )}
+                    {iaAnalisis.estado === 'aceptada'
+                      && iaAnalisis.severidad
+                      && severidades.includes(iaAnalisis.severidad)
+                      && form.nivel_severidad !== iaAnalisis.severidad && (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-purple-300">
+                          <Sparkles size={11} />
+                          IA sugiere: <strong className="font-semibold">{SEVERIDAD_LABELS[iaAnalisis.severidad]}</strong>
+                          <span className="text-gray-500">— confirma con un click</span>
+                        </span>
+                      )}
                   </label>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {severidades.map(sev => (
-                      <button
-                        type="button"
-                        key={sev}
-                        onClick={() => set('nivel_severidad', sev)}
-                        className={`py-2.5 text-sm rounded-lg border transition-colors ${
-                          form.nivel_severidad === sev
-                            ? SEVERIDAD_ACTIVE[sev]
-                            : 'border-gray-700 text-gray-500 hover:border-gray-600'
-                        }`}
-                      >
-                        {SEVERIDAD_LABELS[sev]}
-                      </button>
-                    ))}
+                    {severidades.map(sev => {
+                      const isSelected = form.nivel_severidad === sev;
+                      const isSugerida = iaAnalisis.estado === 'aceptada'
+                        && iaAnalisis.severidad === sev
+                        && !isSelected;
+                      return (
+                        <button
+                          type="button"
+                          key={sev}
+                          onClick={() => {
+                            // Toggle deselección + limpia la sugerencia visual de IA
+                            set('nivel_severidad', form.nivel_severidad === sev ? '' : sev);
+                            if (iaAnalisis.estado === 'aceptada' && iaAnalisis.severidad) {
+                              setIaAnalisis(prev => ({ ...prev, severidad: null }));
+                            }
+                          }}
+                          className={`relative py-2.5 text-sm rounded-lg border transition-colors ${
+                            isSelected
+                              ? SEVERIDAD_ACTIVE[sev]
+                              : isSugerida
+                                ? 'border-purple-500/60 bg-purple-500/10 text-purple-200 ring-1 ring-purple-500/40 animate-pulse'
+                                : 'border-gray-700 text-gray-500 hover:border-gray-600'
+                          }`}
+                        >
+                          {isSugerida && (
+                            <span className="absolute top-1 right-1 inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold tracking-wider bg-purple-500/30 text-purple-200 border border-purple-500/40">
+                              <Sparkles size={9} /> IA
+                            </span>
+                          )}
+                          {SEVERIDAD_LABELS[sev]}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
