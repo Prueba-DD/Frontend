@@ -10,6 +10,8 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import imageCompression from 'browser-image-compression';
 import { createReporte, analizarImagenIA } from '../services/api';
+import imageCompression from 'browser-image-compression';
+import { createReporte } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { reverseGeocode } from '../utils/geo';
 import {
