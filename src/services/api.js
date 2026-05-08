@@ -65,6 +65,10 @@ export const exportReportes = (params)     => api.get('/reportes/export', { para
 export const toggleLikeReporte  = (id)         => api.post(`/reportes/${id}/like`);
 export const getTrendingReportes = (params)    => api.get('/reportes/trending', { params });
 
+// FE-26 (BE-11): zonas de riesgo predictivas y alertas
+export const getZonasRiesgo        = (params) => api.get('/reportes/zonas-riesgo',        { params });
+export const getAlertasPredictivas = (params) => api.get('/reportes/alertas-predictivas', { params });
+
 // ── Perfil / Auth ──
 export const getPerfil            = ()                                               => api.get('/auth/perfil');
 export const updatePerfil         = (data)                                            => api.patch('/auth/perfil', data);

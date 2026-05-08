@@ -1,11 +1,12 @@
 import { useEffect, useState, useRef, lazy, Suspense, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { checkHealth, getStats, getReportes, exportReportes, getStatsCategoria, getStatsTimeline, getHeatmapPoints } from '../services/api';
+import { checkHealth, getStats, getReportes, exportReportes, getStatsCategoria, getStatsTimeline, getHeatmapPoints, getZonasRiesgo, getAlertasPredictivas } from '../services/api';
 import {
   ClipboardList, Search, CheckCircle2, Users,
   MapPin, TrendingUp, ArrowRight, Activity, Clock, Filter, X,
   AlertCircle, Percent, FileDown, Loader2,
   BarChart3, LineChart as LineIcon, Flame,
+  Brain, TrendingDown, Minus, RefreshCw,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CountUp } from '../utils/animations.jsx';
@@ -97,8 +98,20 @@ export default function Dashboard() {
   const [timelineData, setTimelineData] = useState([]);
   const [bucket,       setBucket]       = useState('week');
   const [heatmapPoints, setHeatmapPoints] = useState([]);
-  const [mapMode,      setMapMode]      = useState('cluster'); // 'cluster' | 'heatmap'
+  const [mapMode,      setMapMode]      = useState('cluster'); // 'cluster' | 'heatmap' | 'prediccion'
   const [chartsLoading, setChartsLoading] = useState(true);
+
+  // FE-26: zonas de riesgo predictivas + alertas (admin/moderador)
+  const [zonasRiesgo,    setZonasRiesgo]    = useState([]);
+  const [zonasLoading,   setZonasLoading]   = useState(false);
+  const [zonasError,     setZonasError]     = useState(false);
+  const [prediccionDias, setPrediccionDias] = useState(90);
+  const [prediccionMin,  setPrediccionMin]  = useState(30);
+  const [alertas,        setAlertas]        = useState([]);
+  const [alertasLoading, setAlertasLoading] = useState(false);
+  const [alertasError,   setAlertasError]   = useState(false);
+  const [alertasNivel,   setAlertasNivel]   = useState('alto');
+  const [alertasTipo,    setAlertasTipo]    = useState('');
 
   const fetchHealth = async () => {
     setLoading(true);
@@ -157,6 +170,39 @@ export default function Dashboard() {
       .then(({ data }) => setTimelineData(data?.data?.data ?? []))
       .catch(() => setTimelineData([]));
   }, [user?.rol, bucket]);
+
+  // FE-26: zonas de riesgo predictivas — solo admin/moderador, sólo si el usuario activa la capa.
+  const fetchZonas = useCallback(() => {
+    if (user?.rol !== 'admin' && user?.rol !== 'moderador') return;
+    setZonasLoading(true);
+    setZonasError(false);
+    getZonasRiesgo({ dias: prediccionDias, min_score: prediccionMin })
+      .then(({ data }) => setZonasRiesgo(data?.data?.zonas ?? []))
+      .catch(() => { setZonasError(true); setZonasRiesgo([]); })
+      .finally(() => setZonasLoading(false));
+  }, [user?.rol, prediccionDias, prediccionMin]);
+
+  useEffect(() => {
+    if (mapMode !== 'prediccion') return;
+    fetchZonas();
+  }, [mapMode, fetchZonas]);
+
+  // FE-26: alertas predictivas — admin/moderador; carga al montar y al cambiar filtros.
+  const fetchAlertas = useCallback(() => {
+    if (user?.rol !== 'admin' && user?.rol !== 'moderador') return;
+    setAlertasLoading(true);
+    setAlertasError(false);
+    const params = { limite: 10, nivel_min: alertasNivel };
+    if (alertasTipo) params.tipo = alertasTipo;
+    getAlertasPredictivas(params)
+      .then(({ data }) => setAlertas(data?.data?.alertas ?? []))
+      .catch(() => { setAlertasError(true); setAlertas([]); })
+      .finally(() => setAlertasLoading(false));
+  }, [user?.rol, alertasNivel, alertasTipo]);
+
+  useEffect(() => {
+    fetchAlertas();
+  }, [fetchAlertas]);
 
   // FE-21: auto-refresh KPIs cada 30s (solo admin/moderador, evita carga innecesaria)
   useEffect(() => {
@@ -664,6 +710,8 @@ export default function Dashboard() {
             <p className="text-xs text-gray-500 mt-0.5">
               {mapMode === 'heatmap'
                 ? `${heatmapPoints.length} punto${heatmapPoints.length !== 1 ? 's' : ''} en el mapa de calor`
+                : mapMode === 'prediccion'
+                ? `${zonasRiesgo.length} zona${zonasRiesgo.length !== 1 ? 's' : ''} de riesgo identificada${zonasRiesgo.length !== 1 ? 's' : ''}`
                 : `${mapReports.length} reporte${mapReports.length !== 1 ? 's' : ''} visible${mapReports.length !== 1 ? 's' : ''}`}
             </p>
           </div>
@@ -692,6 +740,62 @@ export default function Dashboard() {
                   title="Ver mapa de calor por severidad"
                 >
                   <Flame size={12} /> Heatmap
+                </button>
+                <button
+                  onClick={() => setMapMode('prediccion')}
+                  aria-pressed={mapMode === 'prediccion'}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors ${
+                    mapMode === 'prediccion'
+                      ? 'bg-violet-600 text-white'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                  title="Ver zonas de riesgo predictivas (modelo basado en reportes recientes)"
+                >
+                  <Brain size={12} /> Predictivo
+                </button>
+              </div>
+            )}
+            {/* FE-26: filtros del modelo predictivo (solo cuando la capa esta activa) */}
+            {isAdmin && mapMode === 'prediccion' && (
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-1 text-gray-400">
+                  Ventana
+                  <select
+                    value={prediccionDias}
+                    onChange={(e) => setPrediccionDias(Number(e.target.value))}
+                    className="bg-gray-900 border border-gray-800 rounded-md px-2 py-1 text-gray-200"
+                    aria-label="Ventana en dias para el calculo predictivo"
+                  >
+                    <option value={30}>30 d</option>
+                    <option value={60}>60 d</option>
+                    <option value={90}>90 d</option>
+                    <option value={180}>180 d</option>
+                    <option value={365}>365 d</option>
+                  </select>
+                </label>
+                <label className="flex items-center gap-1 text-gray-400">
+                  Score mín.
+                  <select
+                    value={prediccionMin}
+                    onChange={(e) => setPrediccionMin(Number(e.target.value))}
+                    className="bg-gray-900 border border-gray-800 rounded-md px-2 py-1 text-gray-200"
+                    aria-label="Score minimo de zonas mostradas"
+                  >
+                    <option value={0}>0</option>
+                    <option value={20}>20</option>
+                    <option value={30}>30</option>
+                    <option value={50}>50</option>
+                    <option value={70}>70</option>
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={fetchZonas}
+                  disabled={zonasLoading}
+                  className="flex items-center gap-1 px-2 py-1 rounded-md bg-gray-900 border border-gray-800 text-gray-300 hover:text-white hover:border-gray-700 disabled:opacity-50"
+                  aria-label="Actualizar zonas de riesgo"
+                >
+                  <RefreshCw size={12} className={zonasLoading ? 'animate-spin' : ''} />
                 </button>
               </div>
             )}
@@ -852,17 +956,170 @@ export default function Dashboard() {
           </AnimatePresence>
         </motion.div>
 
-        <div className="rounded-xl overflow-hidden border border-gray-800 h-72 sm:h-[420px] lg:h-[560px]">
+        <div id="mapa-reportes" className="rounded-xl overflow-hidden border border-gray-800 h-72 sm:h-[420px] lg:h-[560px]">
           <Suspense fallback={
             <div className="h-full flex items-center justify-center bg-gray-900 text-gray-500 text-sm">Cargando mapa…</div>
           }>
             <ReportsMap
               reports={mapMode === 'heatmap' ? heatmapPoints : mapReports}
               mode={mapMode}
+              zonas={zonasRiesgo}
             />
           </Suspense>
         </div>
+        {mapMode === 'prediccion' && (
+          <p className="text-[11px] text-gray-500 mt-2 italic">
+            Estimación basada en reportes de los últimos {prediccionDias} días. No representa una alerta oficial.
+            {zonasLoading && <span className="ml-2 text-violet-400">Cargando zonas…</span>}
+            {zonasError && (
+              <button
+                type="button"
+                onClick={fetchZonas}
+                className="ml-2 text-red-400 hover:text-red-300 underline"
+              >
+                Error al cargar. Reintentar
+              </button>
+            )}
+          </p>
+        )}
       </section>
+
+      {/* FE-26: Alertas predictivas (admin/moderador) */}
+      {isAdmin && (
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Brain size={16} className="text-violet-400" />
+              <h2 className="font-semibold text-white">Alertas predictivas</h2>
+              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-300 border border-violet-500/20">
+                Beta
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <label className="flex items-center gap-1.5 text-gray-400">
+                Nivel mín.
+                <select
+                  value={alertasNivel}
+                  onChange={(e) => setAlertasNivel(e.target.value)}
+                  className="bg-gray-900 border border-gray-800 rounded-md px-2 py-1 text-gray-200"
+                >
+                  <option value="bajo">Bajo</option>
+                  <option value="medio">Medio</option>
+                  <option value="alto">Alto</option>
+                  <option value="critico">Crítico</option>
+                </select>
+              </label>
+              <label className="flex items-center gap-1.5 text-gray-400">
+                Tipo
+                <select
+                  value={alertasTipo}
+                  onChange={(e) => setAlertasTipo(e.target.value)}
+                  className="bg-gray-900 border border-gray-800 rounded-md px-2 py-1 text-gray-200"
+                >
+                  <option value="">Todos</option>
+                  {Object.keys(CONFIGURACION_CATEGORIAS).map((k) => (
+                    <option key={k} value={k}>{CONFIGURACION_CATEGORIAS[k]?.nombre ?? k}</option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={fetchAlertas}
+                disabled={alertasLoading}
+                className="flex items-center gap-1 px-2 py-1 rounded-md bg-gray-900 border border-gray-800 text-gray-300 hover:text-white hover:border-gray-700 disabled:opacity-50"
+                aria-label="Actualizar alertas predictivas"
+              >
+                <RefreshCw size={12} className={alertasLoading ? 'animate-spin' : ''} />
+                Actualizar
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-4">
+            {alertasLoading ? (
+              <div className="space-y-2">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="h-14 rounded-lg bg-gray-800/40 animate-pulse" />
+                ))}
+              </div>
+            ) : alertasError ? (
+              <div className="text-center py-6">
+                <p className="text-sm text-red-400 mb-2">No se pudieron cargar las alertas predictivas.</p>
+                <button
+                  type="button"
+                  onClick={fetchAlertas}
+                  className="text-xs text-violet-400 hover:text-violet-300 underline"
+                >
+                  Reintentar
+                </button>
+              </div>
+            ) : alertas.length === 0 ? (
+              <div className="text-center py-6 text-sm text-gray-500">
+                Sin alertas activas con los criterios actuales. Esto es buena señal: no se detectan zonas con tendencia al alza significativa.
+              </div>
+            ) : (
+              <ul className="divide-y divide-gray-800/60">
+                {alertas.map((a) => {
+                  const color = a.nivel === 'critico' ? '#dc2626'
+                    : a.nivel === 'alto' ? '#fb923c'
+                    : a.nivel === 'medio' ? '#facc15' : '#22c55e';
+                  const tipoNombre = CONFIGURACION_CATEGORIAS?.[a.tipo]?.nombre ?? a.tipo ?? '—';
+                  const lugar = [a.municipio, a.departamento].filter(Boolean).join(', ') || '—';
+                  const TendIcon = a.tendencia === 'subiendo' ? TrendingUp
+                    : a.tendencia === 'bajando' ? TrendingDown : Minus;
+                  const tendColor = a.tendencia === 'subiendo' ? 'text-red-400'
+                    : a.tendencia === 'bajando' ? 'text-green-400' : 'text-gray-400';
+                  const tendLabel = a.tendencia === 'subiendo' ? 'tendencia al alza'
+                    : a.tendencia === 'bajando' ? 'tendencia a la baja' : 'tendencia estable';
+                  return (
+                    <li key={a.id} className="flex flex-wrap items-center gap-3 py-3">
+                      <span
+                        className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider"
+                        style={{ background: `${color}22`, color, border: `1px solid ${color}55` }}
+                      >
+                        {a.nivel}
+                      </span>
+                      <div className="flex-1 min-w-[180px]">
+                        <p className="text-sm text-white font-medium">
+                          {tipoNombre}{a.subcategoria ? ` · ${a.subcategoria}` : ''}
+                        </p>
+                        <p className="text-xs text-gray-500">📍 {lugar}</p>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-gray-400">
+                        <span className="tabular-nums">
+                          <strong className="text-gray-200">{a.n_reportes_30d}</strong>
+                          <span className="text-gray-600"> / {a.n_reportes_30d_previos} prev.</span>
+                        </span>
+                        <span className={`flex items-center gap-1 ${tendColor}`} aria-label={tendLabel}>
+                          <TendIcon size={14} aria-hidden="true" />
+                        </span>
+                        <span className="tabular-nums text-gray-500">score {a.score}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMapMode('prediccion');
+                          // scroll suave al mapa
+                          requestAnimationFrame(() => {
+                            const el = document.getElementById('mapa-reportes');
+                            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          });
+                        }}
+                        className="text-xs text-violet-400 hover:text-violet-300 inline-flex items-center gap-1"
+                      >
+                        Ver en el mapa <ArrowRight size={12} />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <p className="mt-3 text-[10px] text-gray-500 italic">
+              Estas alertas comparan los últimos 30 días con los 30 anteriores. Son una guía para priorizar y no reemplazan análisis técnicos ni alertas oficiales.
+            </p>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

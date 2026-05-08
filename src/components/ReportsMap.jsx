@@ -1,5 +1,5 @@
 ﻿import { memo, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, CircleMarker } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -118,11 +118,123 @@ function HeatLayer({ points }) {
   return null;
 }
 
-export default memo(function ReportsMap({ reports = [], mode = 'cluster' }) {
+// FE-26: capa predictiva — círculos coloreados por nivel de riesgo + popup explicativo.
+const NIVEL_COLOR = {
+  bajo:    '#22c55e',
+  medio:   '#facc15',
+  alto:    '#fb923c',
+  critico: '#dc2626',
+};
+
+const NIVEL_LABEL = {
+  bajo: 'Bajo', medio: 'Medio', alto: 'Alto', critico: 'Crítico',
+};
+
+const TIPO_LABEL_FALLBACK = {
+  agua: 'Contaminación del agua',
+  aire: 'Contaminación del aire',
+  suelo: 'Contaminación del suelo',
+  residuos: 'Residuos sólidos',
+  deforestacion: 'Deforestación',
+  incendios_forestales: 'Incendios forestales',
+  avalanchas_fluviotorrenciales: 'Avalanchas fluviotorrenciales',
+  otro: 'Otro',
+};
+
+function FitToZonas({ zonas }) {
+  const map = useMap();
+  const fittedKeyRef = useRef(null);
+  useEffect(() => {
+    if (!zonas?.length) return;
+    const key = `${zonas.length}|${zonas[0]?.id}|${zonas[zonas.length - 1]?.id}`;
+    if (fittedKeyRef.current === key) return;
+    fittedKeyRef.current = key;
+    const bounds = L.latLngBounds(
+      zonas.map((z) => [z.centro.lat, z.centro.lng])
+    );
+    map.fitBounds(bounds, { padding: [60, 60], maxZoom: 12 });
+  }, [zonas, map]);
+  return null;
+}
+
+function PrediccionLayer({ zonas = [] }) {
+  return (
+    <>
+      {zonas.map((z) => {
+        const color = NIVEL_COLOR[z.nivel] ?? '#94a3b8';
+        // Radio (px) proporcional al nº de reportes (entre 8 y 26).
+        const radius = Math.max(8, Math.min(26, 6 + Math.sqrt(z.n_reportes) * 4));
+        const tipoNombre = TIPO_LABEL_FALLBACK[z.tipo_dominante] ?? z.tipo_dominante ?? '—';
+        const lugar = [z.municipio, z.departamento].filter(Boolean).join(', ');
+        const ultimo = z.ultimo_reporte
+          ? new Date(z.ultimo_reporte).toLocaleDateString('es-CO', {
+              day: 'numeric', month: 'short', year: 'numeric',
+            })
+          : '';
+        return (
+          <CircleMarker
+            key={z.id}
+            center={[z.centro.lat, z.centro.lng]}
+            pathOptions={{
+              color,
+              weight: 1.5,
+              fillColor: color,
+              fillOpacity: 0.45,
+            }}
+            radius={radius}
+          >
+            <Popup minWidth={240}>
+              <div style={{ fontFamily: 'Inter, system-ui, sans-serif', minWidth: '230px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: color, display: 'inline-block' }} />
+                  <span style={{ fontSize: 11, color, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Riesgo {NIVEL_LABEL[z.nivel] ?? z.nivel}
+                  </span>
+                  <span style={{ marginLeft: 'auto', fontSize: 11, color: '#6b7280' }}>
+                    score {z.score}
+                  </span>
+                </div>
+                <p style={{ fontSize: 13, fontWeight: 700, color: '#111827', margin: '0 0 4px' }}>
+                  {tipoNombre}
+                </p>
+                {z.subcategoria_dominante && (
+                  <p style={{ fontSize: 12, color: '#374151', margin: '0 0 6px' }}>
+                    {z.subcategoria_dominante}
+                  </p>
+                )}
+                {lugar && (
+                  <p style={{ fontSize: 11, color: '#6b7280', margin: '0 0 8px' }}>📍 {lugar}</p>
+                )}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, fontSize: 11, color: '#374151' }}>
+                  <div><strong>{z.n_reportes}</strong> reportes</div>
+                  <div>Sev. media <strong>{z.severidad_promedio?.toFixed?.(1) ?? z.severidad_promedio}</strong></div>
+                </div>
+                {ultimo && (
+                  <p style={{ fontSize: 10, color: '#9ca3af', margin: '8px 0 0' }}>
+                    Último reporte: {ultimo}
+                  </p>
+                )}
+                <p style={{ fontSize: 10, color: '#9ca3af', margin: '6px 0 0', fontStyle: 'italic' }}>
+                  Estimación basada en reportes recientes. No es una alerta oficial.
+                </p>
+              </div>
+            </Popup>
+          </CircleMarker>
+        );
+      })}
+    </>
+  );
+}
+
+export default memo(function ReportsMap({ reports = [], mode = 'cluster', zonas = [] }) {
   const navigate = useNavigate();
   const withCoords = reports.filter((r) => r.latitud && r.longitud);
 
-  if (withCoords.length === 0) {
+  // En modo predicción usamos el conjunto de zonas; el mapa se muestra
+  // aunque no haya `reports` (la capa predictiva proviene de su propio fetch).
+  const isPrediccion = mode === 'prediccion';
+
+  if (!isPrediccion && withCoords.length === 0) {
     return (
       <div className="h-full w-full flex flex-col items-center justify-center bg-gray-900/60 rounded-xl border border-gray-800 gap-3">
         <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -144,12 +256,19 @@ export default memo(function ReportsMap({ reports = [], mode = 'cluster' }) {
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
       />
-      <FitBounds points={withCoords} />
-
-      {mode === 'heatmap' ? (
-        <HeatLayer points={withCoords} />
+      {isPrediccion ? (
+        <>
+          <FitToZonas zonas={zonas} />
+          <PrediccionLayer zonas={zonas} />
+        </>
       ) : (
-        <MarkerClusterGroup chunkedLoading>
+        <>
+          <FitBounds points={withCoords} />
+
+          {mode === 'heatmap' ? (
+            <HeatLayer points={withCoords} />
+          ) : (
+            <MarkerClusterGroup chunkedLoading>
         {withCoords.map((r) => {
         const cfg       = helpers.obtenerConfig(r.tipo_contaminacion);
         const catColor  = cfg?.color ?? '#94a3b8';
@@ -225,6 +344,8 @@ export default memo(function ReportsMap({ reports = [], mode = 'cluster' }) {
         );
       })}
       </MarkerClusterGroup>
+      )}
+        </>
       )}
     </MapContainer>
   );
