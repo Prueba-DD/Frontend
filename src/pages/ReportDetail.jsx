@@ -4,10 +4,13 @@ import {
   Droplets, Trees, Flame, Wind, Trash2, Leaf,
   Waves, ArrowLeft, MapPin, Calendar, Eye,
   User, ShieldCheck, ImageOff, Sparkles,
+  Pencil, X, Check, AlertTriangle, Loader2,
 } from 'lucide-react';
-import { motion } from 'motion/react';
-import { getReporteById } from '../services/api';
+import { motion, AnimatePresence } from 'motion/react';
+import { getReporteById, updateReporte, deleteReporte } from '../services/api';
 import { helpers } from '../constants/categorias';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 const typeIcons = {
   agua: Droplets, aire: Wind, suelo: Leaf,
@@ -88,11 +91,21 @@ function VideoCard({ ev }) {
 export default function ReportDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { showToast } = useToast();
   const [report,    setReport]    = useState(null);
   const [autor,     setAutor]     = useState(null);
   const [evidencias,setEvidencias]= useState([]);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState('');
+
+  // Edición inline (solo dueño + estado pendiente)
+  const [editMode,    setEditMode]    = useState(false);
+  const [editForm,    setEditForm]    = useState(null);
+  const [editError,   setEditError]   = useState('');
+  const [saving,      setSaving]      = useState(false);
+  const [confirmDel,  setConfirmDel]  = useState(false);
+  const [deleting,    setDeleting]    = useState(false);
 
   useEffect(() => {
     const storedUser = (() => { try { return JSON.parse(localStorage.getItem('ga_user')); } catch { return null; } })();
@@ -148,6 +161,79 @@ export default function ReportDetail() {
   );
   const hasMedia = imageEvidencias.length > 0 || videoEvidencias.length > 0;
 
+  // Permisos: solo el dueño puede editar/eliminar y solo si está pendiente
+  const isOwner    = user && report.id_usuario === user.id_usuario;
+  const canManage  = isOwner && report.estado === 'pendiente';
+
+  const startEdit = () => {
+    setEditForm({
+      titulo:       report.titulo       ?? '',
+      descripcion:  report.descripcion  ?? '',
+      direccion:    report.direccion    ?? '',
+      municipio:    report.municipio    ?? '',
+      departamento: report.departamento ?? '',
+    });
+    setEditError('');
+    setEditMode(true);
+  };
+
+  const cancelEdit = () => {
+    if (saving) return;
+    setEditMode(false);
+    setEditForm(null);
+    setEditError('');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editForm) return;
+    const titulo      = editForm.titulo.trim();
+    const descripcion = editForm.descripcion.trim();
+    if (titulo.length < 3) {
+      setEditError('El título debe tener al menos 3 caracteres.');
+      return;
+    }
+    if (titulo.length > 150) {
+      setEditError('El título no puede superar 150 caracteres.');
+      return;
+    }
+    if (descripcion.length > 2000) {
+      setEditError('La descripción no puede superar 2000 caracteres.');
+      return;
+    }
+    setEditError('');
+    setSaving(true);
+    try {
+      const { data } = await updateReporte(id, {
+        titulo,
+        descripcion,
+        direccion:    editForm.direccion.trim(),
+        municipio:    editForm.municipio.trim(),
+        departamento: editForm.departamento.trim(),
+      });
+      setReport(data.data.reporte ?? { ...report, titulo, descripcion, direccion: editForm.direccion.trim(), municipio: editForm.municipio.trim(), departamento: editForm.departamento.trim() });
+      setEditMode(false);
+      setEditForm(null);
+      showToast('Reporte actualizado.', 'success');
+    } catch (err) {
+      setEditError(err.response?.data?.message ?? 'No se pudo actualizar el reporte.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await deleteReporte(id);
+      showToast('Reporte eliminado.', 'success');
+      navigate('/profile');
+    } catch (err) {
+      showToast(err.response?.data?.message ?? 'No se pudo eliminar el reporte.', 'error');
+      setDeleting(false);
+      setConfirmDel(false);
+    }
+  };
+
   return (
     <motion.div
       className="max-w-4xl mx-auto px-4 sm:px-6 py-10"
@@ -182,18 +268,32 @@ export default function ReportDetail() {
         <div className="flex flex-col gap-6 p-6 sm:p-8">
           {/* Header */}
           <div className="flex flex-wrap items-start gap-4 justify-between">
-            <div className="flex items-start gap-3 min-w-0">
+            <div className="flex items-start gap-3 min-w-0 flex-1">
               <div
                 className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
                 style={{ backgroundColor: catColor + '20', border: `1.5px solid ${catColor}55` }}
               >
                 <Icon className="w-5 h-5" style={{ color: catColor }} />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: catColor }}>
                   {catNombre}
                 </p>
-                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white leading-snug">{report.titulo}</h1>
+                {editMode ? (
+                  <>
+                    <input
+                      type="text"
+                      value={editForm.titulo}
+                      onChange={(e) => setEditForm((s) => ({ ...s, titulo: e.target.value }))}
+                      maxLength={150}
+                      autoFocus
+                      className="w-full bg-gray-800 border border-blue-500/50 rounded-lg px-3 py-2 text-lg sm:text-xl font-bold text-white focus:outline-none focus:border-blue-500 transition-colors"
+                    />
+                    <p className="text-[10px] text-gray-600 mt-1 text-right">{editForm.titulo.length}/150</p>
+                  </>
+                ) : (
+                  <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white leading-snug">{report.titulo}</h1>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap shrink-0">
@@ -211,8 +311,109 @@ export default function ReportDetail() {
             </div>
           </div>
 
+          {/* Acciones del propietario (editar / eliminar) */}
+          {canManage && !editMode && (
+            <div className="flex items-center gap-2 -mt-2">
+              <span className="text-[11px] text-gray-500 mr-auto flex items-center gap-1">
+                <Pencil size={11} /> Puedes editar o eliminar este reporte mientras esté en estado pendiente.
+              </span>
+              <button
+                type="button"
+                onClick={startEdit}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-blue-500/40 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 transition-colors"
+              >
+                <Pencil size={13} /> Editar
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmDel(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-red-500/40 bg-red-500/10 hover:bg-red-500/20 text-red-300 transition-colors"
+              >
+                <Trash2 size={13} /> Eliminar
+              </button>
+            </div>
+          )}
+
           {/* Description */}
-          {report.descripcion ? (
+          {editMode ? (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">Descripción</label>
+                <textarea
+                  value={editForm.descripcion}
+                  onChange={(e) => setEditForm((s) => ({ ...s, descripcion: e.target.value }))}
+                  maxLength={2000}
+                  rows={5}
+                  placeholder="Describe el problema ambiental con el mayor detalle posible…"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors resize-y"
+                />
+                <p className="text-[10px] text-gray-600 mt-1 text-right">{editForm.descripcion.length}/2000</p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">Dirección</label>
+                <input
+                  type="text"
+                  value={editForm.direccion}
+                  onChange={(e) => setEditForm((s) => ({ ...s, direccion: e.target.value }))}
+                  maxLength={255}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-400 mb-1.5">Municipio</label>
+                  <input
+                    type="text"
+                    value={editForm.municipio}
+                    onChange={(e) => setEditForm((s) => ({ ...s, municipio: e.target.value }))}
+                    maxLength={100}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-400 mb-1.5">Departamento</label>
+                  <input
+                    type="text"
+                    value={editForm.departamento}
+                    onChange={(e) => setEditForm((s) => ({ ...s, departamento: e.target.value }))}
+                    maxLength={100}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
+                  />
+                </div>
+              </div>
+
+              <p className="text-[11px] text-gray-500 flex items-start gap-1.5">
+                <AlertTriangle size={11} className="mt-0.5 shrink-0" />
+                La categoría, severidad y coordenadas no son modificables desde aquí.
+              </p>
+
+              {editError && (
+                <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30">
+                  <AlertTriangle size={13} className="text-red-400 mt-0.5 shrink-0" />
+                  <p className="text-xs text-red-300 leading-relaxed">{editError}</p>
+                </div>
+              )}
+
+              <div className="flex gap-2 justify-end pt-2 border-t border-gray-800">
+                <button
+                  type="button"
+                  onClick={cancelEdit}
+                  disabled={saving}
+                  className="btn-secondary text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEdit}
+                  disabled={saving || !editForm.titulo.trim()}
+                  className="text-sm font-semibold px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-all active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {saving ? <><Loader2 size={13} className="animate-spin" /> Guardando…</> : <><Check size={13} /> Guardar cambios</>}
+                </button>
+              </div>
+            </div>
+          ) : report.descripcion ? (
             <p className="text-gray-300 leading-relaxed text-base text-justify">
               {report.descripcion}
             </p>
@@ -385,6 +586,54 @@ export default function ReportDetail() {
           )}
         </div>
       </div>
+
+      {/* Confirmación de eliminación */}
+      <AnimatePresence>
+        {confirmDel && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={(e) => { if (e.target === e.currentTarget && !deleting) setConfirmDel(false); }}
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-sm w-full shadow-2xl"
+            >
+              <div className="flex items-start gap-3 mb-5">
+                <div className="w-9 h-9 rounded-full bg-red-500/10 border border-red-500/25 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-4 h-4 text-red-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white mb-1">¿Eliminar reporte?</p>
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    Esta acción es permanente y no se puede deshacer. El reporte y sus evidencias serán borrados.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setConfirmDel(false)}
+                  disabled={deleting}
+                  className="btn-secondary text-sm"
+                  autoFocus
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="text-sm font-semibold px-5 py-2.5 rounded-lg bg-red-600 hover:bg-red-500 text-white transition-all active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {deleting ? <><Loader2 size={13} className="animate-spin" /> Eliminando…</> : <><Trash2 size={13} /> Eliminar</>}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

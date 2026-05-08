@@ -6,6 +6,7 @@ import {
   Droplet, Wind, Leaf, Trash2, HelpCircle,
   X, Video, Locate,
   Camera, Sparkles, AlertTriangle, Loader2, Check,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import imageCompression from 'browser-image-compression';
 import { createReporte, analizarImagenIA } from '../services/api';
@@ -99,7 +100,7 @@ export default function FormularioReporte() {
   //                categoria, nombre, confianza, etiquetas, mensajeError }
   const [iaAnalisis, setIaAnalisis] = useState({ estado: 'idle' });
   const iaInputRef = useRef(null);
-  
+
   const set = (key, val) => setForm(p => ({ ...p, [key]: val }));
 
   const stepDir = useRef(1);
@@ -435,7 +436,7 @@ export default function FormularioReporte() {
                     </h3>
                     <p className="text-xs text-gray-400 mt-0.5">
                       Sube una foto del problema y la IA te sugerirá la categoría más probable.
-                    </p>
+                  </p>
 
                     <input
                       ref={iaInputRef}
@@ -556,95 +557,81 @@ export default function FormularioReporte() {
 
               <h2 className="font-semibold text-white">¿Qué tipo de problema ambiental es?</h2>
 
-              {/* Sección riesgo ambiental */}
-              <div>
-                <p className="text-xs font-semibold text-orange-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                  <AlertCircle size={13} /> Riesgo Ambiental
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                  {CATS_RIESGO.map(({ value, nombre, descripcion, icono, color }) => {
-                    const Ic       = ICONO_MAP[icono] ?? HelpCircle;
-                    const selected = form.tipo_contaminacion === value;
-                    const fromIA   = selected && iaAnalisis.estado === 'aceptada' && iaAnalisis.categoria === value;
-                    return (
-                      <button
-                        type="button"
-                        key={value}
-                        onClick={() => selectCategoria(value)}
-                        className={`relative text-left px-4 py-3 rounded-lg border transition-all ${
-                          selected ? 'ring-1' : 'border-gray-700 bg-gray-800/50 hover:border-gray-600'
-                        }`}
-                        style={selected ? { borderColor: color, backgroundColor: color + '18', ringColor: color } : {}}
-                      >
-                        {fromIA && (
-                          <span className="absolute top-1.5 right-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider bg-purple-500/30 text-purple-200 border border-purple-500/40">
-                            <Sparkles size={9} /> IA
-                          </span>
-                        )}
-                        <div className="flex items-center gap-2.5 mb-1">
-                          <Ic size={18} style={{ color: selected ? color : '#9CA3AF' }} />
-                          <span className="text-sm font-medium" style={selected ? { color } : { color: '#D1D5DB' }}>
-                            {nombre}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-500 pl-7">{descripcion}</p>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              {/* Render unificado de tarjetas (mismo layout para riesgo y contaminación) */}
+              {(() => {
+                const renderCard = ({ value, nombre, descripcion, icono, color }) => {
+                  const Ic       = ICONO_MAP[icono] ?? HelpCircle;
+                  const selected = form.tipo_contaminacion === value;
+                  const fromIA   = selected && iaAnalisis.estado === 'aceptada' && iaAnalisis.categoria === value;
+                  return (
+                    <button
+                      type="button"
+                      key={value}
+                      onClick={() => selectCategoria(value)}
+                      className={`relative h-full text-left px-4 py-3 rounded-lg border transition-all flex flex-col ${
+                        selected ? 'ring-1' : 'border-gray-700 bg-gray-800/50 hover:border-gray-600'
+                      }`}
+                      style={selected ? { borderColor: color, backgroundColor: color + '18', ringColor: color } : {}}
+                    >
+                      {fromIA && (
+                        <span className="absolute top-1.5 right-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider bg-purple-500/30 text-purple-200 border border-purple-500/40">
+                          <Sparkles size={9} /> IA
+                        </span>
+                      )}
+                      <div className="flex items-start gap-2.5 mb-1.5">
+                        <Ic size={18} className="shrink-0 mt-0.5" style={{ color: selected ? color : '#9CA3AF' }} />
+                        <span
+                          className="text-sm font-medium leading-tight pr-6"
+                          style={selected ? { color } : { color: '#D1D5DB' }}
+                        >
+                          {nombre}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 pl-7 leading-snug line-clamp-2">{descripcion}</p>
+                    </button>
+                  );
+                };
+                return (
+                  <>
+                    {/* Sección riesgo ambiental */}
+                    <div>
+                      <p className="text-xs font-semibold text-orange-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                        <AlertCircle size={13} /> Riesgo Ambiental
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-stretch">
+                        {CATS_RIESGO.map(renderCard)}
+                      </div>
+                    </div>
 
-              {/* Sección contaminación */}
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                  Contaminación ambiental
-                </p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
-                  {CATS_CONTAMINACION.map(({ value, nombre, icono, color }) => {
-                    const Ic       = ICONO_MAP[icono] ?? HelpCircle;
-                    const selected = form.tipo_contaminacion === value;
-                    const fromIA   = selected && iaAnalisis.estado === 'aceptada' && iaAnalisis.categoria === value;
-                    return (
-                      <button
-                        type="button"
-                        key={value}
-                        onClick={() => selectCategoria(value)}
-                        className={`relative text-left px-4 py-3 rounded-lg border transition-all ${
-                          selected ? 'ring-1' : 'border-gray-700 bg-gray-800/50 hover:border-gray-600'
-                        }`}
-                        style={selected ? { borderColor: color, backgroundColor: color + '18' } : {}}
-                      >
-                        {fromIA && (
-                          <span className="absolute top-1.5 right-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider bg-purple-500/30 text-purple-200 border border-purple-500/40">
-                            <Sparkles size={9} /> IA
-                          </span>
-                        )}
-                        <div className="flex items-center gap-2 text-sm font-medium">
-                          <Ic size={16} style={{ color: selected ? color : '#9CA3AF' }} />
-                          <span style={selected ? { color } : { color: '#D1D5DB' }}>{nombre}</span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                    {/* Sección contaminación */}
+                    <div>
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                        Contaminación Ambiental
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 items-stretch">
+                        {CATS_CONTAMINACION.map(renderCard)}
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
 
-                {/* Campo extra cuando se elige "Otro" */}
-                {form.tipo_contaminacion === TIPOS_CONTAMINACION.OTRO && (
-                  <div className="mt-3">
-                    <label className="text-sm text-gray-400 mb-1.5 block">
-                      Especifica el tipo de problema <span className="text-gray-600">(opcional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ej: Tala ilegal, contaminación por minería..."
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors"
-                      value={form.otro_especifica}
-                      onChange={(e) => set('otro_especifica', e.target.value)}
-                      maxLength={80}
-                    />
-                  </div>
-                )}
-              </div>
+              {/* Campo extra cuando se elige "Otro" */}
+              {form.tipo_contaminacion === TIPOS_CONTAMINACION.OTRO && (
+                <div>
+                  <label className="text-sm text-gray-400 mb-1.5 block">
+                    Especifica el tipo de problema <span className="text-gray-600">(opcional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: Tala ilegal, contaminación por minería..."
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors"
+                    value={form.otro_especifica}
+                    onChange={(e) => set('otro_especifica', e.target.value)}
+                    maxLength={80}
+                  />
+                </div>
+              )}
 
               {/* Subcategoría (aparece al elegir categoría si hay opciones disponibles) */}
               {form.tipo_contaminacion && subcategoriasDisponibles.length > 0 && (

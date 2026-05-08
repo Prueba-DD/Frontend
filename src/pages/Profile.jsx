@@ -10,7 +10,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { getPerfil, updatePerfil, updateAvatar, changePassword, getMisReportes, deleteReporte } from '../services/api';
+import { getPerfil, updatePerfil, updateAvatar, changePassword, getMisReportes } from '../services/api';
+import AvatarCropperModal from '../components/AvatarCropperModal';
 import PasswordStrengthIndicator from '../components/PasswordStrengthIndicator';
 import { helpers } from '../constants/categorias';
 
@@ -225,34 +226,45 @@ export default function Profile() {
   const [pwSaving, setPwSaving] = useState(false);
   const [showPw,   setShowPw]   = useState({ actual: false, nueva: false, confirmar: false });
 
-  // ── Avatar upload ─────────────────────────────────────────────────────────
+  // ── Avatar upload (con recorte cliente) ──────────────────────────────────
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [cropperSrc, setCropperSrc] = useState(null); // dataURL para el modal
   const avatarInputRef = useRef(null);
 
-  const handleAvatarChange = async (e) => {
+  const handleAvatarChange = (e) => {
     const file = e.target.files?.[0];
+    if (avatarInputRef.current) avatarInputRef.current.value = ''; // permite reseleccionar el mismo archivo
     if (!file) return;
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
       showToast('Solo se permiten imágenes JPEG, PNG o WebP.', 'warning');
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      showToast('La imagen no puede superar 2 MB.', 'warning');
+    // Tope de entrada generoso (10 MB) — el recorte reduce el tamaño final.
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('La imagen no puede superar 10 MB.', 'warning');
       return;
     }
+    const reader = new FileReader();
+    reader.onload = () => setCropperSrc(reader.result);
+    reader.onerror = () => showToast('No se pudo leer la imagen.', 'error');
+    reader.readAsDataURL(file);
+  };
+
+  const handleCropConfirm = async (blob) => {
+    if (!blob) return;
+    // El recorte sale como JPEG 512x512 (~80–120 KB) — muy por debajo del límite del backend.
     const formData = new FormData();
-    formData.append('avatar', file);
+    formData.append('avatar', blob, 'avatar.jpg');
     setAvatarUploading(true);
     try {
       const { data } = await updateAvatar(formData);
       setPerfil(data.data.user);
+      setCropperSrc(null);
       showToast('Foto de perfil actualizada.', 'success');
     } catch (err) {
       showToast(err.response?.data?.message || 'Error al subir la foto.', 'error');
     } finally {
       setAvatarUploading(false);
-      // Reset para permitir volver a seleccionar el mismo archivo
-      if (avatarInputRef.current) avatarInputRef.current.value = '';
     }
   };
 
@@ -262,8 +274,6 @@ export default function Profile() {
   const [misRptTotal,    setMisRptTotal]    = useState(0);
   const [misRptPage,     setMisRptPage]     = useState(0);
   const [misRptLoading,  setMisRptLoading]  = useState(false);
-  const [confirmElim,    setConfirmElim]    = useState(null);
-  const [eliminando,     setEliminando]     = useState(false);
   const [rptFiltros,     setRptFiltros]     = useState({ estado: '', severidad: '' });
 
   const fetchMisReportes = useCallback(async (page = 0, filtros = rptFiltros) => {
@@ -286,21 +296,6 @@ export default function Profile() {
   useEffect(() => {
     if (section === 'mis-reportes') fetchMisReportes(0);
   }, [section, fetchMisReportes]);
-
-  const handleEliminar = async () => {
-    if (!confirmElim) return;
-    setEliminando(true);
-    try {
-      await deleteReporte(confirmElim);
-      showToast('Reporte eliminado.', 'success');
-      setConfirmElim(null);
-      fetchMisReportes(misRptPage);
-    } catch (err) {
-      showToast(err.response?.data?.message ?? 'Error al eliminar.', 'error');
-    } finally {
-      setEliminando(false);
-    }
-  };
 
   useEffect(() => {
     getPerfil()
@@ -915,33 +910,23 @@ export default function Profile() {
                                 <ReporteStepper estado={r.estado} />
                               </div>
 
-                              {/* Acciones — íconos compactos */}
+                              {/* Acciones — únicamente "Ver detalle". La edición y eliminación viven en la página del reporte. */}
                               <div className="flex items-center gap-0.5 shrink-0">
                                 <Link
                                   to={`/reports/${r.id_reporte}`}
-                                  className="p-1.5 rounded-lg text-gray-600 hover:text-green-400 hover:bg-green-500/10 transition-colors"
-                                  title="Ver detalle"
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-gray-400 hover:text-green-400 hover:bg-green-500/10 transition-colors"
+                                  title={esPendiente ? 'Ver, editar o eliminar' : 'Ver detalle'}
                                 >
-                                  <ExternalLink size={14} />
+                                  {esPendiente ? (
+                                    <>
+                                      <Pencil size={12} /> Gestionar
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ExternalLink size={12} /> Ver detalle
+                                    </>
+                                  )}
                                 </Link>
-                                {esPendiente && (
-                                  <>
-                                    <Link
-                                      to={`/reports/${r.id_reporte}`}
-                                      className="p-1.5 rounded-lg text-gray-600 hover:text-blue-400 hover:bg-blue-500/10 transition-colors"
-                                      title="Editar"
-                                    >
-                                      <Pencil size={14} />
-                                    </Link>
-                                    <button
-                                      onClick={() => setConfirmElim(r.id_reporte)}
-                                      className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                                      title="Eliminar"
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
-                                  </>
-                                )}
                               </div>
                             </div>
 
@@ -977,60 +962,23 @@ export default function Profile() {
                   </div>
                 )}
               </div>
-
-              {/* Modal de confirmación de eliminación */}
-              <AnimatePresence>
-                {confirmElim && (
-                  <div
-                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-                    onClick={(e) => { if (e.target === e.currentTarget && !eliminando) setConfirmElim(null); }}
-                  >
-                    <motion.div
-                      role="dialog"
-                      aria-modal="true"
-                      aria-labelledby="modal-elim-title"
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-sm w-full shadow-2xl"
-                    >
-                      <div className="flex items-start gap-3 mb-5">
-                        <div className="w-9 h-9 rounded-full bg-red-500/10 border border-red-500/25 flex items-center justify-center shrink-0">
-                          <AlertTriangle className="w-4 h-4 text-red-400" />
-                        </div>
-                        <div>
-                          <p id="modal-elim-title" className="text-sm font-semibold text-white mb-1">¿Eliminar reporte?</p>
-                          <p className="text-xs text-gray-400 leading-relaxed">
-                            Esta acción es permanente y no se puede deshacer. El reporte y toda su información serán borrados.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex gap-3 justify-end">
-                        <button
-                          onClick={() => setConfirmElim(null)}
-                          disabled={eliminando}
-                          className="btn-secondary text-sm"
-                          autoFocus
-                        >
-                          Cancelar
-                        </button>
-                        <button
-                          onClick={handleEliminar}
-                          disabled={eliminando}
-                          className="text-sm font-semibold px-5 py-2.5 rounded-lg bg-red-600 hover:bg-red-500 text-white transition-all active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
-                        >
-                          {eliminando ? <><Loader2 size={13} className="animate-spin" /> Eliminando...</> : 'Eliminar'}
-                        </button>
-                      </div>
-                    </motion.div>
-                  </div>
-                )}
-              </AnimatePresence>
             </div>
           )}
 
         </div>
       </div>
+
+      {/* Modal de recorte de avatar */}
+      <AnimatePresence>
+        {cropperSrc && (
+          <AvatarCropperModal
+            imageSrc={cropperSrc}
+            uploading={avatarUploading}
+            onCancel={() => { if (!avatarUploading) setCropperSrc(null); }}
+            onConfirm={handleCropConfirm}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
