@@ -10,8 +10,6 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import imageCompression from 'browser-image-compression';
 import { createReporte, analizarImagenIA } from '../services/api';
-import imageCompression from 'browser-image-compression';
-import { createReporte } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { reverseGeocode } from '../utils/geo';
 import {
@@ -438,7 +436,7 @@ export default function FormularioReporte() {
                     </h3>
                     <p className="text-xs text-gray-400 mt-0.5">
                       Sube una foto del problema y la IA te sugerirá la categoría más probable.
-                    </p>
+                  </p>
 
                     <input
                       ref={iaInputRef}
