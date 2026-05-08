@@ -256,6 +256,7 @@ export default function FormularioReporte() {
       // Siempre FormData (backend espera 'files')
       const payload = new FormData();
       payload.append('tipo_contaminacion', form.tipo_contaminacion);
+      payload.append('nivel_severidad',    form.nivel_severidad);
       if (form.subcategoria) payload.append('subcategoria', form.subcategoria);
       payload.append('titulo',             form.titulo);
       payload.append('descripcion',        descripcionFinal || '');
