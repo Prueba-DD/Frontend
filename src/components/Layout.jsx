@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useEffect } from 'react';
 import Navbar from './Navbar';
 import VerificacionEmailBanner from './VerificacionEmailBanner';
+import ChatWidget from './chat/ChatWidget';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -72,6 +73,7 @@ export default function Layout() {
           <Link to="/terminos" className="hover:text-green-400 transition-colors">Términos y Condiciones</Link>
         </div>
       </footer>
+      <ChatWidget />
     </div>
   );
 }

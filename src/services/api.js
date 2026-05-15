@@ -89,3 +89,8 @@ export const getAdminUsuario      = (id)                => api.get(`/admin/usuar
 export const cambiarRolUsuario    = (id, rol)           => api.patch(`/admin/usuarios/${id}/rol`, { rol });
 export const cambiarEstadoUsuario = (id, activo)        => api.patch(`/admin/usuarios/${id}/estado`, { activo });
 export const eliminarUsuarioAdmin = (id)                => api.delete(`/admin/usuarios/${id}`);
+
+// FE-28 (BE-13): chatbot conversacional
+export const sendChatMessage = (payload, options = {}) => api.post('/chatbot/mensaje', payload, { timeout: 10000, ...options });
+export const getChatFaqs = () => api.get('/chatbot/faqs');
+
