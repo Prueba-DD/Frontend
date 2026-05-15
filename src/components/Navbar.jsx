@@ -2,6 +2,10 @@
 import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import { UserCircle, Settings as SettingsIcon, ShieldCheck, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import { useUbicacionUsuario } from '../hooks/useUbicacionUsuario';
+import { useAlertasZona } from '../hooks/useAlertasZona';
+import CampanaAlertas from './notificaciones/CampanaAlertas.jsx';
 
 const navItems = [
   { to: '/',           label: 'Inicio',          end: true,  guestOnly: true, scrollToTop: true },
@@ -29,9 +33,43 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { user, logout } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const showNewReport = location.pathname !== '/reports';
+
+  // FE-27 · alertas predictivas en la zona del usuario (in-app, toast + badge)
+  const alertasZonaEnabled = user
+    ? localStorage.getItem('ga_alertas_zona_enabled') === '1'
+    : false;
+  const radioGuardado = Number(localStorage.getItem('ga_alertas_radio_km')) || 10;
+  const toastEnabled = localStorage.getItem('ga_alertas_toast_enabled') !== '0';
+
+  const { location: userLoc } = useUbicacionUsuario({
+    user,
+    enabled: alertasZonaEnabled && !!user,
+  });
+
+  const handleNuevaAlerta = (a) => {
+    if (!toastEnabled) return;
+    const dist = Number.isFinite(a?.distancia_km) ? `${a.distancia_km} km` : 'cerca';
+    const tipo = a?.tipo ?? 'Riesgo';
+    const nivel = a?.nivel ?? 'medio';
+    showToast(
+      `Nueva alerta en tu zona: ${tipo} (${nivel}) · ${dist}`,
+      'info',
+      5000,
+      { subtitle: a?.municipio ?? undefined }
+    );
+  };
+
+  const alertasState = useAlertasZona({
+    enabled: alertasZonaEnabled && !!user && !!userLoc,
+    location: userLoc,
+    radioKm: radioGuardado,
+    nivelMin: 'medio',
+    onNuevaAlerta: handleNuevaAlerta,
+  });
 
   const linkClass = ({ isActive }) =>
     `text-sm font-medium transition-colors duration-150 ${
@@ -91,6 +129,16 @@ export default function Navbar() {
                 <Link to="/reports/new" className="btn-primary text-sm">
                   + Nuevo Reporte
                 </Link>
+              )}
+
+              {alertasZonaEnabled && (
+                <CampanaAlertas
+                  count={alertasState.count}
+                  alertas={alertasState.alertas}
+                  noVistas={alertasState.noVistas}
+                  onMarcarVista={alertasState.marcarVista}
+                  onMarcarTodas={alertasState.marcarTodasVistas}
+                />
               )}
 
               {/* Avatar / menú usuario */}

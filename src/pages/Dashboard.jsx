@@ -16,6 +16,7 @@ import { helpers, CONFIGURACION_CATEGORIAS } from '../constants/categorias';
 import { generarReportesPDF } from '../utils/reportesPdf';
 import BarChart from '../components/charts/BarChart';
 import LineChart from '../components/charts/LineChart';
+import TendenciasIACard from '../components/dashboard/TendenciasIACard.jsx';
 
 const ReportsMap = lazy(() => import('../components/ReportsMap'));
 
@@ -699,6 +700,13 @@ export default function Dashboard() {
               <LineChart data={timelineData} bucket={bucket} />
             )}
           </motion.div>
+        </section>
+      )}
+
+      {/* FE-27 · Tendencias y patrones detectados por la IA (admin/moderador) */}
+      {isAdmin && (
+        <section>
+          <TendenciasIACard />
         </section>
       )}
 

@@ -1,14 +1,15 @@
-﻿import { useState } from 'react';
+﻿import { useState, useEffect } from 'react';
 import {
   Bell, ShieldCheck, LogOut, AlertTriangle, Download, Mail,
   User, Check, ChevronRight, Trash2, Power, Zap, ExternalLink,
-  AlertCircle, RefreshCw, Tag, FileText,
+  AlertCircle, RefreshCw, Tag, FileText, MapPin, Radar,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { motion, AnimatePresence } from 'motion/react';
 import DescargarDatos from '../components/DescargarDatos';
+import { useUbicacionUsuario, borrarUbicacionGuardada } from '../hooks/useUbicacionUsuario';
 
 // ── Sidebar nav items ─────────────────────────────────────────────────────────
 const NAV = [
@@ -80,6 +81,29 @@ export default function Settings() {
   const [frecuencia,   setFrecuencia]   = useState('inmediato');
   const [savingNotifs, setSavingNotifs] = useState(false);
   const [savedNotifs,  setSavedNotifs]  = useState(false);
+
+  // ── FE-27 · Alertas en mi zona ────────────────────────────────────────────
+  const [alertasZonaEnabled, setAlertasZonaEnabled] = useState(
+    () => localStorage.getItem('ga_alertas_zona_enabled') === '1'
+  );
+  const [alertasRadio, setAlertasRadio] = useState(
+    () => Number(localStorage.getItem('ga_alertas_radio_km')) || 10
+  );
+  const [alertasToastEnabled, setAlertasToastEnabled] = useState(
+    () => localStorage.getItem('ga_alertas_toast_enabled') !== '0'
+  );
+
+  useEffect(() => {
+    localStorage.setItem('ga_alertas_zona_enabled', alertasZonaEnabled ? '1' : '0');
+  }, [alertasZonaEnabled]);
+  useEffect(() => {
+    localStorage.setItem('ga_alertas_radio_km', String(alertasRadio));
+  }, [alertasRadio]);
+  useEffect(() => {
+    localStorage.setItem('ga_alertas_toast_enabled', alertasToastEnabled ? '1' : '0');
+  }, [alertasToastEnabled]);
+
+  const ubicacion = useUbicacionUsuario({ user, enabled: alertasZonaEnabled });
 
   // ── Modales ───────────────────────────────────────────────────────────────
   const [modal, setModal] = useState(null);
@@ -262,6 +286,90 @@ export default function Settings() {
                     </motion.span>
                   )}
                 </AnimatePresence>
+              </div>
+
+              {/* FE-27 · Alertas predictivas en mi zona */}
+              <div className="mt-6 pt-5 border-t border-gray-800">
+                <h3 className="text-sm font-semibold text-white flex items-center gap-2 mb-1">
+                  <MapPin size={14} className="text-green-400" /> Alertas en mi zona
+                </h3>
+                <p className="text-xs text-gray-500 mb-3">
+                  Te avisamos cuando se detecte un nuevo riesgo cerca de tu ubicación.
+                </p>
+
+                <NotifRow
+                  icon={Radar}
+                  label="Activar alertas en mi zona"
+                  description="Consulta el modelo predictivo y muestra una campana en la barra superior."
+                  checked={alertasZonaEnabled}
+                  onChange={setAlertasZonaEnabled}
+                />
+
+                <NotifRow
+                  icon={Bell}
+                  label="Mostrar toast emergente"
+                  description="Además de la campana, muestra una notificación flotante al recibir una alerta nueva."
+                  checked={alertasToastEnabled}
+                  onChange={setAlertasToastEnabled}
+                />
+
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-gray-300 mb-2">Radio de búsqueda</p>
+                  <div className="flex flex-wrap gap-2">
+                    {[5, 10, 25, 50].map((km) => (
+                      <button
+                        key={km}
+                        type="button"
+                        onClick={() => setAlertasRadio(km)}
+                        disabled={!alertasZonaEnabled}
+                        className={`px-4 py-1.5 rounded-full text-sm border transition-all
+                          ${alertasRadio === km
+                            ? 'bg-green-500/15 border-green-500/50 text-green-400 font-medium'
+                            : 'border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200'}
+                          disabled:opacity-40 disabled:cursor-not-allowed`}
+                      >
+                        {km} km
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-4 p-3 rounded-lg border border-gray-800 bg-gray-900/50 text-xs text-gray-400">
+                  <p className="font-medium text-gray-300 mb-1">Ubicación detectada</p>
+                  {ubicacion.loading ? (
+                    <p>Detectando ubicación…</p>
+                  ) : ubicacion.location ? (
+                    <p className="tabular-nums">
+                      {Number(ubicacion.location.lat).toFixed(4)},{' '}
+                      {Number(ubicacion.location.lng).toFixed(4)}
+                      <span className="text-gray-500 ml-1">· fuente: {ubicacion.location.fuente ?? '—'}</span>
+                    </p>
+                  ) : (
+                    <p>Sin ubicación conocida. Pulsa "Actualizar mi ubicación" para detectarla.</p>
+                  )}
+                  {ubicacion.error && (
+                    <p className="text-amber-400 mt-1">
+                      {ubicacion.error}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <button
+                      type="button"
+                      onClick={() => ubicacion.refresh({ force: true })}
+                      disabled={!alertasZonaEnabled || ubicacion.loading}
+                      className="text-xs px-3 py-1.5 rounded-md border border-gray-700 text-gray-300 hover:border-green-500/50 hover:text-green-400 disabled:opacity-40"
+                    >
+                      Actualizar mi ubicación
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { borrarUbicacionGuardada(); ubicacion.clear?.(); showToast('Ubicación guardada eliminada.', 'info'); }}
+                      className="text-xs px-3 py-1.5 rounded-md border border-gray-700 text-gray-300 hover:border-red-500/50 hover:text-red-400"
+                    >
+                      Borrar ubicación guardada
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
