@@ -96,3 +96,10 @@ export const eliminarUsuarioAdmin = (id)                => api.delete(`/admin/us
 export const sendChatMessage = (payload, options = {}) => api.post('/chatbot/mensaje', payload, { timeout: 10000, ...options });
 export const getChatFaqs = () => api.get('/chatbot/faqs');
 
+// FE-29 (BE-14): notificaciones in-app
+export const getNotificaciones                = (params)  => api.get('/notificaciones', { params });
+export const getNotificacionesContador        = ()        => api.get('/notificaciones/contador');
+export const marcarNotificacionLeida          = (uuid)    => api.patch(`/notificaciones/${uuid}/leida`);
+export const marcarTodasNotificacionesLeidas  = ()        => api.patch('/notificaciones/marcar-todas');
+export const eliminarNotificacion             = (uuid)    => api.delete(`/notificaciones/${uuid}`);
+

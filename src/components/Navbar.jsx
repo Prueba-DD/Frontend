@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useUbicacionUsuario } from '../hooks/useUbicacionUsuario';
 import { useAlertasZona } from '../hooks/useAlertasZona';
-import CampanaAlertas from './notificaciones/CampanaAlertas.jsx';
+import CampanaNotificaciones from './notificaciones/CampanaNotificaciones.jsx';
 
 const navItems = [
   { to: '/',           label: 'Inicio',          end: true,  guestOnly: true, scrollToTop: true },
@@ -70,6 +70,10 @@ export default function Navbar() {
     nivelMin: 'medio',
     onNuevaAlerta: handleNuevaAlerta,
   });
+  // `alertasState` se mantiene para conservar el polling de FE-27 que dispara
+  // toasts vía `onNuevaAlerta`. La campana visual se unificó en
+  // `CampanaNotificaciones` (FE-29), por eso no se renderiza ya `CampanaAlertas`.
+  void alertasState;
 
   const linkClass = ({ isActive }) =>
     `text-sm font-medium transition-colors duration-150 ${
@@ -131,15 +135,9 @@ export default function Navbar() {
                 </Link>
               )}
 
-              {alertasZonaEnabled && (
-                <CampanaAlertas
-                  count={alertasState.count}
-                  alertas={alertasState.alertas}
-                  noVistas={alertasState.noVistas}
-                  onMarcarVista={alertasState.marcarVista}
-                  onMarcarTodas={alertasState.marcarTodasVistas}
-                />
-              )}
+              {/* FE-29: campana única de notificaciones in-app
+                  (las alertas de zona FE-27 siguen llegando como toasts) */}
+              <CampanaNotificaciones enabled={!!user} />
 
               {/* Avatar / menú usuario */}
               <div className="relative">
