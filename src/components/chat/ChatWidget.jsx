@@ -123,30 +123,39 @@ export default function ChatWidget() {
         type="button"
         aria-label={abierto ? 'Cerrar chat de AUREL' : 'Abrir chat de AUREL'}
         onClick={() => setAbierto((v) => !v)}
-        className={`fixed bottom-4 right-4 sm:bottom-5 sm:right-5 z-50 w-20 h-20 rounded-full items-center justify-center transition-all hover:scale-105 active:scale-95 ${
+        className={`fixed bottom-4 right-4 sm:bottom-5 sm:right-5 z-50 rounded-full items-center justify-center transition-all hover:scale-105 active:scale-95 ${
           abierto
-            ? `bg-green-600 hover:bg-green-500 text-white shadow-xl ${FAB_GLOW[estadoAmbiental] ?? FAB_GLOW.optimo} hidden sm:flex`
-            : 'bg-transparent shadow-none flex'
+            ? `w-11 h-11 sm:w-12 sm:h-12 bg-green-600 hover:bg-green-500 text-white shadow-lg ${FAB_GLOW[estadoAmbiental] ?? FAB_GLOW.optimo} hidden sm:flex`
+            : 'w-32 h-32 sm:w-36 sm:h-36 bg-transparent shadow-none flex'
         }`}
       >
         <AnimatePresence mode="wait" initial={false}>
           {abierto ? (
             <motion.span key="x" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.15 }}>
-              <X size={22} />
+              <X size={16} />
             </motion.span>
           ) : (
-            <motion.img
+            // motion.div gestiona entrada/salida (scale+opacity) — capa separada
+            // del div.aurel-float que anima el float (translateY+rotate) via CSS,
+            // evitando colisión de transforms entre Framer Motion y CSS animation.
+            <motion.div
               key="aurel"
-              src="/aurel.png"
-              alt="AUREL"
-              draggable={false}
               initial={{ scale: 0.7, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.7, opacity: 0 }}
               transition={{ duration: 0.18 }}
-              className="w-28 h-28 object-contain select-none"
-              style={{ filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.45))' }}
-            />
+              className="w-full h-full"
+            >
+              <div className="aurel-float w-full h-full">
+                <img
+                  src="/aurel.png"
+                  alt="AUREL"
+                  draggable={false}
+                  className="w-full h-full object-contain select-none"
+                  style={{ filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.5))' }}
+                />
+              </div>
+            </motion.div>
           )}
         </AnimatePresence>
       </button>
@@ -223,14 +232,14 @@ export default function ChatWidget() {
             {/* ── Vista Chat ── */}
             {view === 'chat' && (
               <>
-                <div ref={listaRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3 scrollbar-thin">
+                <div ref={listaRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3 scrollbar-dark">
                   {mensajes.length === 0 && (
-                    <div className="text-center py-4">
-                      <div className="flex justify-center mb-3">
-                        <AurelAvatar size="lg" estado={estadoAmbiental} />
+                    <div className="text-center py-2">
+                      <div className="flex justify-center mb-2">
+                        <AurelAvatar size="lg" estado={estadoAmbiental} showDot={false} />
                       </div>
-                      <p className="text-sm font-medium text-gray-200 mb-1">Soy AUREL</p>
-                      <p className="text-xs text-gray-400 mb-4 px-4">La viva del planeta. Pregúntame sobre reportes, alertas en tu zona o cómo usar la plataforma.</p>
+                      <p className="text-xs font-semibold text-gray-200 mb-0.5">Soy AUREL</p>
+                      <p className="text-[11px] text-gray-400 mb-3 px-6 leading-snug">Pregúntame sobre reportes, alertas en tu zona o cómo usar la plataforma.</p>
                       <div className="flex flex-col items-center gap-2">
                         {EJEMPLOS.map((ej) => (
                           <button
@@ -331,7 +340,7 @@ export default function ChatWidget() {
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-2">
+                <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-2 scrollbar-dark">
                   {cargandoFaqs && (
                     <div className="flex justify-center py-8">
                       <Loader2 size={20} className="animate-spin text-green-400" />

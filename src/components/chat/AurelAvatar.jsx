@@ -6,6 +6,7 @@ const TAMAÑOS = {
   sm: 'w-12 h-12',
   md: 'w-16 h-16',
   lg: 'w-28 h-28',
+  xl: 'w-36 h-36',
 };
 
 const ESTADO_COLOR = {
@@ -21,10 +22,11 @@ const DOT = {
   sm: 'w-2 h-2',
   md: 'w-2.5 h-2.5',
   lg: 'w-3 h-3',
+  xl: 'w-3.5 h-3.5',
 };
 
 /**
- * @param {{ size?: 'xs'|'sm'|'md'|'lg', estado?: string, showDot?: boolean, className?: string }} props
+ * @param {{ size?: 'xs'|'sm'|'md'|'lg'|'xl', estado?: string, showDot?: boolean, className?: string }} props
  */
 export default function AurelAvatar({ size = 'sm', estado = 'optimo', showDot = true, className = '' }) {
   const wrap     = TAMAÑOS[size] ?? TAMAÑOS.sm;
@@ -42,7 +44,7 @@ export default function AurelAvatar({ size = 'sm', estado = 'optimo', showDot = 
       />
       {showDot && (
         <span
-          className={`absolute -bottom-0.5 -right-0.5 ${dotSize} ${dotColor} rounded-full ring-2 ring-gray-900`}
+          className={`absolute -right-1 top-1/2 -translate-y-1/2 ${dotSize} ${dotColor} rounded-full ring-2 ring-gray-900`}
           aria-label={`Estado ambiental: ${estado}`}
         />
       )}

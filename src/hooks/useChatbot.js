@@ -58,7 +58,7 @@ export function useChatbot({ ubicacion = null } = {}) {
     setError(null);
 
     try {
-      const historial = [...mensajes, userMsg]
+      const historial = mensajes
         .slice(-HISTORIAL_PARA_API * 2)
         .map((m) => ({ role: m.role, content: m.content }));
 

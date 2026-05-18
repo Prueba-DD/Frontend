@@ -70,6 +70,16 @@
   50%       { opacity: 1;   transform: scale(1.10); }
 }
 
+/* ── AUREL mascota flotante ───────────────────────────────── */
+@keyframes aurel-float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-7px); }
+}
+.aurel-float {
+  animation: aurel-float 3s ease-in-out infinite;
+  will-change: transform;
+}
+
 /* prefers-reduced-motion: desactiva todas las animaciones/transiciones */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
